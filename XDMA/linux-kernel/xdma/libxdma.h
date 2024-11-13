@@ -197,14 +197,15 @@
 #endif
 
 #ifdef __LIBXDMA_DEBUG__
-#define dbg_io		pr_err
-#define dbg_fops	pr_err
-#define dbg_perf	pr_err
-#define dbg_sg		pr_err
-#define dbg_tfr		pr_err
-#define dbg_irq		pr_err
-#define dbg_init	pr_err
-#define dbg_desc	pr_err
+#define DEBUG
+#define dbg_io		pr_info
+#define dbg_fops	pr_info
+#define dbg_perf	pr_info
+#define dbg_sg		pr_info
+#define dbg_tfr		pr_info
+#define dbg_irq		pr_info
+#define dbg_init	pr_info
+#define dbg_desc	pr_info
 #else
 /* disable debugging */
 #define dbg_io(...)

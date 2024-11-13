@@ -153,7 +153,7 @@ static inline int debug_check_dev_hndl(const char *fname, struct pci_dev *pdev,
 inline void __write_register(const char *fn, u32 value, void *iomem,
 			     unsigned long off)
 {
-	pr_err("%s: w reg 0x%lx(0x%p), 0x%x.\n", fn, off, iomem, value);
+	pr_info("%s: w reg 0x%lx(0x%p), 0x%x.\n", fn, off, iomem, value);
 	iowrite32(value, iomem);
 }
 #define write_register(v, mem, off) __write_register(__func__, v, mem, off)
