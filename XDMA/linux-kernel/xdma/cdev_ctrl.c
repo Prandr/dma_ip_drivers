@@ -194,9 +194,9 @@ int bridge_mmap(struct file *file, struct vm_area_struct *vma)
 	struct xdma_dev *xdev;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
 	unsigned long off;
-	unsigned long phys;
+	resource_size_t phys;
 	unsigned long vsize;
-	unsigned long psize;
+	resource_size_t psize;
 	int rv;
 
 	rv = xcdev_check(__func__, xcdev, 0);
@@ -216,11 +216,11 @@ int bridge_mmap(struct file *file, struct vm_area_struct *vma)
 	dbg_sg("mmap(): cdev->bar = %d\n", xcdev->bar);
 	dbg_sg("mmap(): xdev = 0x%p\n", xdev);
 	dbg_sg("mmap(): pci_dev = 0x%08lx\n", (unsigned long)xdev->pdev);
-	dbg_sg("off = 0x%lx, vsize 0x%lu, psize 0x%lu.\n", off, vsize, psize);
+	dbg_sg("off = 0x%lx, vsize 0x%lu, psize 0x%llu.\n", off, vsize, psize);
 	dbg_sg("start = 0x%llx\n",
 		(unsigned long long)pci_resource_start(xdev->pdev,
 		xcdev->bar));
-	dbg_sg("phys = 0x%lx\n", phys);
+	dbg_sg("phys = 0x%llx\n", phys);
 
 	if (vsize > psize)
 		return -EINVAL;
@@ -247,7 +247,7 @@ int bridge_mmap(struct file *file, struct vm_area_struct *vma)
 	/* make MMIO accessible to user space */
 	rv = io_remap_pfn_range(vma, vma->vm_start, phys >> PAGE_SHIFT,
 			vsize, vma->vm_page_prot);
-	dbg_sg("vma=0x%p, vma->vm_start=0x%lx, phys=0x%lx, size=%lu = %d\n",
+	dbg_sg("vma=0x%p, vma->vm_start=0x%lx, phys=0x%llx, size=%lu = %d\n",
 		vma, vma->vm_start, phys >> PAGE_SHIFT, vsize, rv);
 
 	if (rv)
