@@ -170,7 +170,7 @@ int position_check(loff_t bar_size, loff_t pos, loff_t align)
 	if (unlikely(pos >= bar_size))
 	{
 		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %lld\n", pos, pos, bar_size);
-		return -ENXIO;
+		return -EFBIG;
 	}
 	if (unlikely(pos & (align - 1)))
 	{	
@@ -208,6 +208,8 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 		newpos = off;
 		break;
 	case 1: /* SEEK_CUR */
+		if (off==0)//common method to retrieve current offset
+			return file->f_pos;
 		newpos = file->f_pos + off;
 		break;
 	case 2: /* SEEK_END*/
@@ -216,7 +218,7 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 	default: /* can't happen */
 		return -EINVAL;
 	}
-	if (newpos < 0)
+	if (newpos < 0 || newpos>=xdev->bar_size[xcdev->bar])
 		return -EINVAL;
 	file->f_pos = newpos;
 	dbg_fops("%s: pos=%lld\n", __func__, (signed long long)newpos);
