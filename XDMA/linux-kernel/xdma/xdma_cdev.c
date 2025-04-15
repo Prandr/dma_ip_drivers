@@ -160,16 +160,16 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 	return 0;
 }
 //implementation of common sanity checks for file offset (position)
-int position_check(loff_t bar_size, loff_t pos, loff_t align)
+int position_check(resource_size_t max_pos, loff_t pos, loff_t align)
 {
 	if (unlikely(pos < 0))
 	{	
 		pr_err("Negative address %lld\n", pos);
 		return -EINVAL;
 	}
-	if (unlikely(pos >= bar_size))
+	if (unlikely((resource_size_t) pos >= max_pos))
 	{
-		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %lld\n", pos, pos, bar_size);
+		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %lld\n", pos, pos, max_pos);
 		return -EFBIG;
 	}
 	if (unlikely(pos & (align - 1)))
@@ -202,7 +202,10 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)(file->private_data);
 	struct xdma_dev *xdev = xcdev->xdev;
 	loff_t newpos = 0;
-
+	//XDMA Address space is unlimited, while other interfaces are limited by their BAR sizes
+	//FIXME: find (or create) reliable method to differentiate  between interfaces
+	resource_size_t maxpos = (xcdev->bar==xdev->config_bar_idx)? MAX_RESOURCE_SIZE: xdev->bar_size[xcdev->bar];
+	dbg_fops("off=%lld, maxpos=%lld, whence=%i, xcdev_bar=%i, config bar=%i", off, maxpos, whence, xcdev->bar, xdev->config_bar_idx);
 	switch (whence) {
 	case 0: /* SEEK_SET */
 		newpos = off;
@@ -213,12 +216,12 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 		newpos = file->f_pos + off;
 		break;
 	case 2: /* SEEK_END*/
-		newpos = xdev->bar_size[xcdev->bar]  + off;
+		newpos = maxpos  + off;
 		break;
 	default: /* can't happen */
 		return -EINVAL;
 	}
-	if (newpos < 0 || newpos>=xdev->bar_size[xcdev->bar])
+	if (newpos < 0 || (resource_size_t) newpos >=maxpos)
 		return -EINVAL;
 	file->f_pos = newpos;
 	dbg_fops("%s: pos=%lld\n", __func__, (signed long long)newpos);

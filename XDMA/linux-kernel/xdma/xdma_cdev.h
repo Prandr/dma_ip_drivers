@@ -29,6 +29,7 @@
 #define XDMA_NODE_NAME	"xdma"
 #define XDMA_MINOR_BASE (0)
 #define XDMA_MINOR_COUNT (255)
+#define MAX_RESOURCE_SIZE   (~((resource_size_t) 0))//max positive value of loff_t
 
 void xdma_cdev_cleanup(void);
 int xdma_cdev_init(void);
@@ -37,7 +38,7 @@ int char_open(struct inode *inode, struct file *file);
 loff_t char_llseek(struct file *file, loff_t off, int whence);
 int char_close(struct inode *inode, struct file *file);
 int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
-int position_check(loff_t bar_size, loff_t pos, loff_t align);
+int position_check(resource_size_t max_pos, loff_t pos, loff_t align);
 void cdev_ctrl_init(struct xdma_cdev *xcdev);
 void cdev_xvc_init(struct xdma_cdev *xcdev);
 void cdev_event_init(struct xdma_cdev *xcdev);
