@@ -685,14 +685,14 @@ struct xdma_dev *xdev_find_by_pdev(struct pci_dev *pdev);
 
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
-
+ssize_t xdma_xfer_submit(struct xdma_engine *engine);
 int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine);
 struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine);
 void enable_perf(struct xdma_engine *engine);
 void get_perf_stats(struct xdma_engine *engine);
 
 int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg);
-int engine_service_poll(struct xdma_engine *engine, u32 expected_desc_count);
+//int engine_service_poll(struct xdma_engine *engine, u32 expected_desc_count);
 
 ssize_t xdma_xfer_aperture(struct xdma_engine *engine, bool write, u64 ep_addr,
 			unsigned int aperture, struct sg_table *sgt,

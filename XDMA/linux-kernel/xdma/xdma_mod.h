@@ -47,7 +47,7 @@
 #include <linux/spinlock_types.h>
 
 #include "libxdma.h"
-#include "xdma_thread.h"
+
 
 #define MAGIC_ENGINE	0xEEEEEEEEUL
 #define MAGIC_DEVICE	0xDDDDDDDDUL

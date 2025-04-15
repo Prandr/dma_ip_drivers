@@ -130,15 +130,7 @@ int xdma_user_isr_disable(void *dev_hndl, unsigned int mask);
  *	 < 0 in case of error
  * TODO: exact error code will be defined later
  */
-ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
-			struct sg_table *sgt, bool dma_mapped, int timeout_ms);
 
-ssize_t xdma_xfer_submit_nowait(void *cb_hndl, void *dev_hndl, int channel, bool write, u64 ep_addr,
-			struct sg_table *sgt, bool dma_mapped, int timeout_ms);
-
-
-ssize_t xdma_xfer_completion(void *cb_hndl, void *dev_hndl, int channel, bool write, u64 ep_addr,
-			struct sg_table *sgt, bool dma_mapped, int timeout_ms);
 
 			
 

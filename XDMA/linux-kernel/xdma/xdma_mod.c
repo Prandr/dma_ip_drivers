@@ -360,10 +360,7 @@ static int xdma_mod_init(void)
 
 	pr_info("%s", version);
 
-	if (desc_blen_max > XDMA_DESC_BLEN_MAX)
-		desc_blen_max = XDMA_DESC_BLEN_MAX;
-	pr_info("desc_blen_max: 0x%x/%u, timeout: h2c %u c2h %u (ms)\n",
-		desc_blen_max, desc_blen_max, h2c_timeout_ms, c2h_timeout_ms);
+	pr_info("timeout: h2c %u c2h %u (ms)\n", h2c_timeout_ms, c2h_timeout_ms);
 
 	rv = xdma_cdev_init();
 	if (rv < 0)
