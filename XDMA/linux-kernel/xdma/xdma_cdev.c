@@ -660,13 +660,7 @@ fail:
 
 int xdma_cdev_init(void)
 {
-#if defined(RHEL_RELEASE_CODE)
-    #if (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 4))
-        g_xdma_class = class_create(XDMA_NODE_NAME);
-    #else
-        g_xdma_class = class_create(THIS_MODULE, XDMA_NODE_NAME);
-    #endif
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+#if KERNEL_VERSION_CHECK(9, 4, 6, 4, 0)
         g_xdma_class = class_create(XDMA_NODE_NAME);
 #else
         g_xdma_class = class_create(THIS_MODULE, XDMA_NODE_NAME);

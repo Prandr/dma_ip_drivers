@@ -27,9 +27,7 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 #include <linux/uio.h>
-#endif
 #include "libxdma_api.h"
 #include "xdma_cdev.h"
 #include "cdev_sgdma.h"

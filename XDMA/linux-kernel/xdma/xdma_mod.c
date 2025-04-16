@@ -295,7 +295,7 @@ static void xdma_error_resume(struct pci_dev *pdev)
 	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
 
 	pr_info("dev 0x%p,0x%p.\n", pdev, xpdev);
-#if PCI_AER_NAMECHANGE
+#if KERNEL_VERSION_CHECK(8, 3, 5, 7, 0)
 	pci_aer_clear_nonfatal_status(pdev);
 #else
 	pci_cleanup_aer_uncorrect_error_status(pdev);
@@ -303,7 +303,7 @@ static void xdma_error_resume(struct pci_dev *pdev)
 
 }
 
-#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
+#if LINUX_VERSION_CHECK(4, 13, 0)
 static void xdma_reset_prepare(struct pci_dev *pdev)
 {
 	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
@@ -320,7 +320,7 @@ static void xdma_reset_done(struct pci_dev *pdev)
 	xdma_device_online(pdev, xpdev->xdev);
 }
 
-#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
+#else
 static void xdma_reset_notify(struct pci_dev *pdev, bool prepare)
 {
 	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
@@ -338,10 +338,10 @@ static const struct pci_error_handlers xdma_err_handler = {
 	.error_detected	= xdma_error_detected,
 	.slot_reset	= xdma_slot_reset,
 	.resume		= xdma_error_resume,
-#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
+#if LINUX_VERSION_CHECK(4, 13, 0)
 	.reset_prepare	= xdma_reset_prepare,
 	.reset_done	= xdma_reset_done,
-#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
+#else
 	.reset_notify	= xdma_reset_notify,
 #endif
 };

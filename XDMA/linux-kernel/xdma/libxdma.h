@@ -32,42 +32,7 @@
 #include <linux/pci.h>
 #include <linux/workqueue.h>
 
-/* Add compatibility checking for RHEL versions */
-#if defined(RHEL_RELEASE_CODE)
-#	define ACCESS_OK_2_ARGS (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 0))
-#else
-#	define ACCESS_OK_2_ARGS (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
-#endif
 
-#if defined(RHEL_RELEASE_CODE)
-#	define HAS_MMIOWB (RHEL_RELEASE_CODE <= RHEL_RELEASE_VERSION(8, 0))
-#else
-#	define HAS_MMIOWB (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 1, 0))
-#endif
-
-#if defined(RHEL_RELEASE_CODE)
-#	define HAS_SWAKE_UP_ONE (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 0))
-#	define HAS_SWAKE_UP (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 0))
-#else
-#	define HAS_SWAKE_UP_ONE (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
-#	define HAS_SWAKE_UP (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
-#endif
-
-#if defined(RHEL_RELEASE_CODE)
-#	define PCI_AER_NAMECHANGE (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 3))
-#else
-#	define PCI_AER_NAMECHANGE (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0))
-#endif
-
-#if	HAS_SWAKE_UP
-#include <linux/swait.h>
-#endif
-
-/*
- *  if the config bar is fixed, the driver does not neeed to search through
- *  all of the bars
- */
-//#define XDMA_CONFIG_BAR_NUM	1
 
 /* SECTION: Preprocessor macros/constants */
 #define XDMA_BAR_NUM (6)
@@ -251,6 +216,34 @@
 #define dbg_init(...)
 #define dbg_desc(...)
 #endif
+
+
+
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(a,b) (0x7fffffff) //workaround for condensed check
+#endif
+#define LINUX_VERSION_CHECK(major, minor, rev) (LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev))
+/*condense version checks into single check*/
+#define KERNEL_VERSION_CHECK(rhel_major, rhel_minor, linux_major, linux_minor, linux_rev) \
+    (((defined(RHEL_RELEASE_CODE) && (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(rhel_major, rhel_minor)))|| \
+    (!defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CHECK(linux_major, linux_minor, linux_rev)))) 
+    
+
+#if KERNEL_VERSION_CHECK(8, 0, 5, 0, 0)
+	#define _access_check(ptr, size) access_ok(ptr, size)
+#else 
+	#define _access_check(ptr, size) access_ok(VERIFY_WRITE, ptr, size)//write includes read. has no impact anyway
+#endif
+
+#define ACCESS_ASSERT(ptr, size) \
+do {\
+	if(_access_check(ptr, size)) {\
+	pr_err("Bad pointer %p", ptr);\
+	return -EFAULT; \
+	}\
+}while(0)
+
+
 
 /* SECTION: Enum definitions */
 enum transfer_state {
@@ -613,9 +606,6 @@ struct xdma_dev {
 	int irq_line;		/* flag if irq allocated successfully */
 	int msi_enabled;	/* flag if msi was enabled for the device */
 	int msix_enabled;	/* flag if msi-x was enabled for the device */
-#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
-	struct msix_entry entry[32];	/* msi-x vector/entry table */
-#endif
 	struct xdma_user_irq user_irq[16];	/* user IRQ management */
 	unsigned int mask_irq_user;
 

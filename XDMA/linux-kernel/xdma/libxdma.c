@@ -1048,19 +1048,11 @@ static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 		int req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max +
 			       xdev->user_max;
 
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
-		dbg_init("Enabling MSI-X\n");
-		rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
-					   PCI_IRQ_MSIX);
-#else
-		int i;
 
 		dbg_init("Enabling MSI-X\n");
-		for (i = 0; i < req_nvec; i++)
-			xdev->entry[i].entry = i;
+		/*avilable since 4.8*/
+		rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec, PCI_IRQ_MSIX);
 
-		rv = pci_enable_msix(pdev, xdev->entry, req_nvec);
-#endif
 		if (rv < 0)
 			dbg_init("Couldn't enable MSI-X mode: %d\n", rv);
 
@@ -1222,11 +1214,8 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	j = xdev->h2c_channel_max;
 	engine = xdev->engine_h2c;
 	for (i = 0; i < xdev->h2c_channel_max; i++, engine++) {
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
 		vector = pci_irq_vector(xdev->pdev, i);
-#else
-		vector = xdev->entry[i].vector;
-#endif
+
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
 				 engine);
 		if (rv) {
@@ -1240,11 +1229,8 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 
 	engine = xdev->engine_c2h;
 	for (i = 0; i < xdev->c2h_channel_max; i++, j++, engine++) {
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
 		vector = pci_irq_vector(xdev->pdev, j);
-#else
-		vector = xdev->entry[j].vector;
-#endif
+
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
 				 engine);
 		if (rv) {
@@ -1277,11 +1263,8 @@ static void irq_msix_user_teardown(struct xdma_dev *xdev)
 	prog_irq_msix_user(xdev, 1);
 
 	for (i = 0; i < xdev->user_max; i++, j++) {
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
 		u32 vector = pci_irq_vector(xdev->pdev, j);
-#else
-		u32 vector = xdev->entry[j].vector;
-#endif
+
 		dbg_init("user %d, releasing IRQ#%d\n", i, vector);
 		free_irq(vector, &xdev->user_irq[i]);
 	}
@@ -1295,11 +1278,8 @@ static int irq_msix_user_setup(struct xdma_dev *xdev)
 
 	/* vectors set in probe_scan_for_msi() */
 	for (i = 0; i < xdev->user_max; i++, j++) {
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
 		u32 vector = pci_irq_vector(xdev->pdev, j);
-#else
-		u32 vector = xdev->entry[j].vector;
-#endif
+
 		rv = request_irq(vector, xdma_user_irq, 0, xdev->mod_name,
 				 &xdev->user_irq[i]);
 		if (rv) {
@@ -1314,11 +1294,8 @@ static int irq_msix_user_setup(struct xdma_dev *xdev)
 	/* If any errors occur, free IRQs that were successfully requested */
 	if (rv) {
 		for (i--, j--; i >= 0; i--, j--) {
-#if KERNEL_VERSION(4, 12, 0) <= LINUX_VERSION_CODE
 			u32 vector = pci_irq_vector(xdev->pdev, j);
-#else
-			u32 vector = xdev->entry[j].vector;
-#endif
+
 			free_irq(vector, &xdev->user_irq[i]);
 		}
 	}
@@ -2303,32 +2280,19 @@ static int set_dma_mask(struct pci_dev *pdev)
 	}
 
 	dbg_init("sizeof(dma_addr_t) == %ld\n", sizeof(dma_addr_t));
-	/* 64-bit addressing capability for XDMA? */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-	if (!pci_set_dma_mask(pdev, DMA_BIT_MASK(64))) 
-#else
+	/* 64-bit addressing capability for XDMA? avilible since 3.13*/
 	if (!dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64))) 
-#endif
 	{
 		/* query for DMA transfer */
 		/* @see Documentation/DMA-mapping.txt */
 		dbg_init("set_dma_mask(64)\n");
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-		pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-#endif
+
 		/* use 64-bit DMA */
 		dbg_init("Using a 64-bit DMA mask.\n");
-	} else 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-	if (!pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) 
-#else
-	if (!dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32))) 
-#endif
+	} else if (!dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32))) 
+
 	{
 		dbg_init("Could not set 64-bit DMA mask.\n");
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-		pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
-#endif
 		/* use 32-bit DMA */
 		dbg_init("Using a 32-bit DMA mask.\n");
 	} else {
@@ -2481,12 +2445,7 @@ static int probe_engines(struct xdma_dev *xdev)
 	return 0;
 }
 
-#if KERNEL_VERSION(3, 5, 0) <= LINUX_VERSION_CODE
-static void pci_enable_capability(struct pci_dev *pdev, int cap)
-{
-	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL, cap);
-}
-#else
+
 static void pci_enable_capability(struct pci_dev *pdev, int cap)
 {
 	u16 v;
@@ -2499,7 +2458,6 @@ static void pci_enable_capability(struct pci_dev *pdev, int cap)
 		pci_write_config_word(pdev, pos + PCI_EXP_DEVCTL, v);
 	}
 }
-#endif
 
 void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 		       int *h2c_channel_max, int *c2h_channel_max)

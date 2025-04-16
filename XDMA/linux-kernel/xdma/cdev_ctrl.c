@@ -24,12 +24,6 @@
 #include "xdma_cdev.h"
 #include "cdev_ctrl.h"
 
-#if ACCESS_OK_2_ARGS
-#define xlx_access_ok(X, Y, Z) access_ok(Y, Z)
-#else
-#define xlx_access_ok(X, Y, Z) access_ok(X, Y, Z)
-#endif
-
 /*
  * character device file operations for control bus (through control bridge)
  */
@@ -149,12 +143,8 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return -ENOTTY;
 	}
 
-	if (_IOC_DIR(cmd) & _IOC_READ)
-		result = !xlx_access_ok(VERIFY_WRITE, (void __user *)arg,
-				_IOC_SIZE(cmd));
-	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		result =  !xlx_access_ok(VERIFY_READ, (void __user *)arg,
-				_IOC_SIZE(cmd));
+		result = _access_check((void __user *)arg,_IOC_SIZE(cmd));
+
 
 	if (result) {
 		pr_err("bad access %ld.\n", result);
@@ -233,14 +223,8 @@ int bridge_mmap(struct file *file, struct vm_area_struct *vma)
 	 * prevent touching the pages (byte access) for swap-in,
 	 * and prevent the pages from being swapped out
 	 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+#if KERNEL_VERSION_CHECK(9, 4, 6, 3, 0)
         vm_flags_set(vma, VMEM_FLAGS);
-#elif defined(RHEL_RELEASE_CODE)
-	#if (RHEL_RELEASE_CODE > RHEL_RELEASE_VERSION(9, 4))
-        vm_flags_set(vma, VMEM_FLAGS);
-	#else
-	vma->vm_flags |= VMEM_FLAGS;
-	#endif
 #else
 	vma->vm_flags |= VMEM_FLAGS;
 #endif
