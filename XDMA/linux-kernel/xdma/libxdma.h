@@ -206,6 +206,15 @@
 #define dbg_irq		pr_info
 #define dbg_init	pr_info
 #define dbg_desc	pr_info
+
+#define xdma_debug_assert_msg(cond, msg, ret_val) \
+	do{ \
+		if (!(cond)){\
+			pr_err("Debug assertion %s failed. %s", _stringify(cond), msg); \
+			return (ret_val);\
+			}\
+	}while(0)
+#define xdma_debug_assert_ptr(ptr) xdma_debug_assert_msg(ptr!=NULL, "Pointer is NULL.", -EINVAL)
 #else
 /* disable debugging */
 #define dbg_io(...)
@@ -216,6 +225,9 @@
 #define dbg_irq(...)
 #define dbg_init(...)
 #define dbg_desc(...)
+
+#define xdma_debug_assert_msg(...)
+#define xdma_debug_assert_ptr(...)
 #endif
 
 
@@ -236,15 +248,17 @@
 	#define _access_check(ptr, size) access_ok(VERIFY_WRITE, ptr, size)//write includes read. has no impact anyway
 #endif
 
-#define ACCESS_ASSERT(ptr, size) \
-do {\
-	if(_access_check(ptr, size)) {\
-	pr_err("Bad pointer %p", ptr);\
-	return -EFAULT; \
-	}\
-}while(0)
+inline int __access_assert(void __user *ptr, unsigned long size, const char *func)
+{
+	if (!_access_check(ptr, size)) 
+	{
+		pr_err("Bad pointer %p in function %s", ptr, func);
+		return -EFAULT; 
+	}
+	return 0
+}
 
-
+#define access_assert(ptr, size) __access_assert(ptr, size, __func__)
 
 /* SECTION: Enum definitions */
 enum transfer_state {

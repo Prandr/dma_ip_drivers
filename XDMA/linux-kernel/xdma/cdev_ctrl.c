@@ -143,7 +143,7 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return -ENOTTY;
 	}
 
-		result = _access_check((void __user *)arg,_IOC_SIZE(cmd));
+		result = !_access_check((void __user *)arg,_IOC_SIZE(cmd));
 
 
 	if (result) {
