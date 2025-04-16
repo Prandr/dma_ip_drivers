@@ -24,6 +24,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/errno.h>
+#inclide <linux/atomic.h>
 #include "xdma_mod.h"
 
 #define XDMA_NODE_NAME	"xdma"

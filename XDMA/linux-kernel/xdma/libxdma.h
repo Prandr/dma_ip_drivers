@@ -25,12 +25,13 @@
 #include <linux/uaccess.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmapool.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
-#include <linux/workqueue.h>
+#include <linux/completion.h>
 
 
 
@@ -284,28 +285,16 @@ enum dev_capabilities {
 
 /* SECTION: Structure definitions */
 
-struct xdma_io_cb {
-	void __user *buf;
-	size_t len;
-	void *private;
-	unsigned int pages_nr;
-	struct sg_table sgt;
-	struct page **pages;
-	/** total data size */
-	unsigned int count;
-	/** MM only, DDR/BRAM memory addr */
-	u64 ep_addr;
-	/** write: if write to the device */
-	struct xdma_request_cb *req;
-	u8 write:1;
-	void (*io_done)(unsigned long cb_hndl, int err);
-};
 
 struct config_regs {
 	u32 identifier;
-	u32 reserved_1[4];
+	u32 block_busdev;
+	u32 max_payload_size;
+	u32 max_read_request_size;
+	u32 block_system_id;
 	u32 msi_enable;
-};
+	u32 datapath_width;
+} __packed;
 
 /**
  * SG DMA Controller status and control registers
@@ -437,102 +426,69 @@ struct xdma_result {
 	u32 reserved_1[6];	/* padding */
 } __packed;
 
-struct sw_desc {
-	dma_addr_t addr;
-	unsigned int len;
-};
 
+struct dma_record {
+	void *virtual_addr;
+	dma_addr_t dma_addr;
+	size_t length;
+}
+
+struct xdma_transfer_request {
+	const char __user *buf,
+	size_t length; 
+	loff_t ep_addr;
+	enum dma_data_direction dir;
+}
 /* Describes a (SG DMA) single transfer for the engine */
-#define XFER_FLAG_NEED_UNMAP		0x1
 #define XFER_FLAG_ST_C2H_EOP_RCVED	0x2	/* ST c2h only */ 
 struct xdma_transfer {
-	struct list_head entry;		/* queue of non-completed transfers */
-	struct xdma_desc *desc_virt;	/* virt addr of the 1st descriptor */
-	struct xdma_result *res_virt;   /* virt addr of result, c2h streaming */
-	dma_addr_t res_bus;		/* bus addr for result descriptors */
-	dma_addr_t desc_bus;		/* bus addr of the first descriptor */
-	int desc_adjacent;		/* adjacent descriptors at desc_bus */
-	int desc_num;			/* number of descriptors in transfer */
-	int desc_index;			/* index for 1st desc. in transfer */
-	int desc_cmpl;			/* completed descriptors */
-	int desc_cmpl_th;		/* completed descriptor threshold */
-	enum dma_data_direction dir;
-#if	HAS_SWAKE_UP
-	struct swait_queue_head wq;
-#else
-	wait_queue_head_t wq;		/* wait queue for transfer completion */
-#endif
-
-	enum transfer_state state;	/* state of the transfer */
-	unsigned int flags;
-	int cyclic;			/* flag if transfer is cyclic */
-	int last_in_request;		/* flag if last within request */
-	unsigned int len;
+	struct page **pages;
+	size_t num_pages;
 	struct sg_table *sgt;
-	struct xdma_io_cb *cb;
+	struct dma_record *adj_blocks;
+	size_t num_adj_blocks;
 };
 
-struct xdma_request_cb {
-	struct sg_table *sgt;
-	u64 ep_addr;
-	unsigned int aperture;
-
-	unsigned int total_len;
-	unsigned int offset;
-
-	struct scatterlist *sg;
-	unsigned int sg_idx;
-	unsigned int sg_offset;
-
-	/* Use two transfers in case single request needs to be split */
-	struct xdma_transfer tfer[2];
-
-	struct xdma_io_cb *cb;
-
-	unsigned int sw_desc_idx;
-	unsigned int sw_desc_cnt;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
-        struct sw_desc sdesc[];
-#else
-	struct sw_desc sdesc[0];
-#endif
-};
+#define XENGINE_OPEN_BIT 0L
+#define XENGINE_BUSY_BIT 1L
 
 struct xdma_engine {
 	unsigned long magic;	/* structure ID for sanity checks */
 	struct xdma_dev *xdev;	/* parent device */
 	char name[16];		/* name of this engine */
 	int version;		/* version of this engine */
+	volatile unsigned long flags;
 
 	/* HW register address offsets */
 	struct engine_regs *regs;		/* Control reg BAR offset */
 	struct engine_sgdma_regs *sgdma_regs;	/* SGDAM reg BAR offset */
-	u32 bypass_offset;			/* Bypass mode BAR offset */
+	u32 bypass_offset;			/* Bypass mode BAR offset???? */
 
 	/* Engine state, configuration and flags */
-	enum shutdown_state shutdown;	/* engine shutdown mode */
-	enum dma_data_direction dir;
-	u8 addr_align;		/* source/dest alignment in bytes */
-	u8 len_granularity;	/* transfer length multiple */
-	u8 addr_bits;		/* HW datapath address width */
-	u8 channel:2;		/* engine indices */
-	u8 streaming:1;
-	u8 device_open:1;	/* flag if engine node open, ST mode only */
-	u8 running:1;		/* flag if the driver started engine */
-	u8 non_incr_addr:1;	/* flag if non-incremental addressing used */
-	u8 eop_flush:1;		/* st c2h only, flush up the data with eop */
-	u8 filler:1;
+	//enum shutdown_state shutdown;	/* engine shutdown mode */
+	const enum dma_data_direction dir;
+	const u8 addr_align;		/* source/dest alignment in bytes */
+	const u8 len_granularity;	/* transfer length multiple */
+	const u8 addr_bits;		/* HW datapath address width */
+	const u8 channel:2;		/* engine indices */
+	const u8 streaming:1;
+	const u8 filler1:1;	
+	const u8 running:1;		/* flag if the driver started engine */
+	const u8 non_incr_addr:1;	/* flag if non-incremental addressing used */
+	const u8 eop_flush:1;		/* st c2h only, flush up the data with eop */
+	const u8 filler2:1;
 
-	int max_extra_adj;	/* descriptor prefetch capability */
-	int desc_dequeued;	/* num descriptors of completed transfers */
-	u32 desc_max;		/* max # descriptors per xfer */
-	u32 status;		/* last known status of device */
+	const unsigned int adj_block_len;	/* max length of adjacent block of descriptors */
+	const unsigned desc_max;		/* max # descriptors per xfer */
+	struct dma_pool *desc_pool;
+	struct completion engine_compl;
+	struct xdma_transfer_request transfer_info;
+	struct xdma_transfer transfer;
 	/* only used for MSIX mode to store per-engine interrupt mask value */
 	u32 interrupt_enable_mask_value;
 
 	/* Transfer list management */
-	struct list_head transfer_list;	/* queue of transfers */
-
+#if 0
 	/* Members applicable to AXI-ST C2H (cyclic) transfers */
 	struct xdma_result *cyclic_result;
 	dma_addr_t cyclic_result_bus;	/* bus addr for transfer */
@@ -542,39 +498,19 @@ struct xdma_engine {
 	/* Members associated with polled mode support */
 	u8 *poll_mode_addr_virt;	/* virt addr for descriptor writeback */
 	dma_addr_t poll_mode_bus;	/* bus addr for descriptor writeback */
-
-	/* Members associated with interrupt mode support */
-#if	HAS_SWAKE_UP
-	struct swait_queue_head shutdown_wq;
-#else
-	wait_queue_head_t shutdown_wq;	/* wait queue for shutdown sync */
 #endif
-	spinlock_t lock;		/* protects concurrent access */
-	int prev_cpu;			/* remember CPU# of (last) locker */
+	/* Members associated with interrupt mode support */
+
+	//spinlock_t lock;		/* protects concurrent access */
 	int msix_irq_line;		/* MSI-X vector for this engine */
 	u32 irq_bitmask;		/* IRQ bit mask for this engine */
 	struct work_struct work;	/* Work queue for interrupt handling */
 
-	struct mutex desc_lock;		/* protects concurrent access */
-	dma_addr_t desc_bus;
-	struct xdma_desc *desc;
-	int desc_idx;			/* current descriptor index */
-	int desc_used;			/* total descriptors used */
+	//struct mutex desc_lock;		/* protects concurrent access */
+	
 
 	/* for performance test support */
-	struct xdma_performance_ioctl *xdma_perf;	/* perf test control */
-#if	HAS_SWAKE_UP
-	struct swait_queue_head xdma_perf_wq;
-#else
-	wait_queue_head_t xdma_perf_wq;	/* Perf test sync */
-#endif
-
-	struct xdma_kthread *cmplthp;
-	/* completion status thread list for the queue */
-	struct list_head cmplthp_list;
-	/* pending work thread list */
-	/* cpu attached to intr_work */
-	unsigned int intr_work_cpu;
+	//struct xdma_performance_ioctl *xdma_perf;	/* perf test control */
 };
 
 struct xdma_user_irq {
@@ -601,7 +537,7 @@ struct xdma_dev {
 	const char *mod_name;		/* name of module owning the dev */
 
 	spinlock_t lock;		/* protects concurrent access */
-	unsigned int flags;
+	//unsigned int flags;
 
 	/* PCIe BAR management */
 	void __iomem *bar[XDMA_BAR_NUM];	/* addresses for mapped BARs */
@@ -615,6 +551,9 @@ struct xdma_dev {
 	int user_max;
 	int c2h_channel_max;
 	int h2c_channel_max;
+	
+	const unsigned int max_read_request_size;
+	const unsigned int datapath_width;
 
 	/* Interrupt management */
 	int irq_count;		/* interrupt counter */
@@ -636,52 +575,6 @@ struct xdma_dev {
 	u64 feature_id;
 };
 
-static inline int xdma_device_flag_check(struct xdma_dev *xdev, unsigned int f)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	if (xdev->flags & f) {
-		spin_unlock_irqrestore(&xdev->lock, flags);
-		return 1;
-	}
-	spin_unlock_irqrestore(&xdev->lock, flags);
-	return 0;
-}
-
-static inline int xdma_device_flag_test_n_set(struct xdma_dev *xdev,
-					 unsigned int f)
-{
-	unsigned long flags;
-	int rv = 0;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	if (xdev->flags & f) {
-		spin_unlock_irqrestore(&xdev->lock, flags);
-		rv = 1;
-	} else
-		xdev->flags |= f;
-	spin_unlock_irqrestore(&xdev->lock, flags);
-	return rv;
-}
-
-static inline void xdma_device_flag_set(struct xdma_dev *xdev, unsigned int f)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	xdev->flags |= f;
-	spin_unlock_irqrestore(&xdev->lock, flags);
-}
-
-static inline void xdma_device_flag_clear(struct xdma_dev *xdev, unsigned int f)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	xdev->flags &= ~f;
-	spin_unlock_irqrestore(&xdev->lock, flags);
-}
 
 void write_register(u32 value, void *iomem);
 u32 read_register(void *iomem);
