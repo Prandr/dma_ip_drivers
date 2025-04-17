@@ -1672,7 +1672,7 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 		return rv;
 	
 	__init_completion(&(engine->engine_compl));
-	pr_info("XDMA engine %s can use up to %u descriptors with adjacent block size %u", 
+	pr_info("XDMA engine %s can use up to %u descriptors with length of block of adjacent descriptors up to %u", 
 		engine->name,engine->desc_max, engine->adj_block_len);
 
 	return 0;
