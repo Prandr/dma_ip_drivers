@@ -118,16 +118,22 @@ static int check_transfer_align(struct xdma_engine *engine,
 }
 
 static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
-		size_t count, loff_t *pos, bool write)
+		size_t count, loff_t *pos)
 {
 	int rv;
 	ssize_t res = 0;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
 	struct xdma_dev *xdev;
-	struct xdma_engine *engine;
+	struct xdma_engine *engine=xcdev->engine;
+	
+	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
+		return -EBUSY;
+	
 
 	res = xdma_xfer_submit(engine);
-
+	
+	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
+	
 	return res;
 }
 
@@ -135,13 +141,13 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 static ssize_t char_sgdma_write(struct file *file, const char __user *buf,
 		size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, buf, count, pos, 1);
+	return char_sgdma_read_write(file, buf, count, pos);
 }
 
 static ssize_t char_sgdma_read(struct file *file, char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, buf, count, pos, 0);
+	return char_sgdma_read_write(file, buf, count, pos);
 }
 
 
@@ -425,25 +431,53 @@ static long char_sgdma_ioctl(struct file *file, unsigned int cmd,
 	return rv;
 }
 
-static int char_sgdma_open(struct inode *inode, struct file *file)
+static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 {
+	int ret_val=0;
 	struct xdma_cdev *xcdev;
 	struct xdma_engine *engine;
+	//don't allow to open the engine more than once
+	if(test_and_set_bit(XENGINE_OPEN_BIT, &(engine->flags)))
+		return -EBUSY;
+		
+	char_open(inode, file_ptr);
 
-	char_open(inode, file);
-
-	xcdev = (struct xdma_cdev *)file->private_data;
+	xcdev = (struct xdma_cdev *)file_ptr->private_data;
 	engine = xcdev->engine;
-
-	/*if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
-		if (engine->device_open == 1)
-			return -EBUSY;
-		engine->device_open = 1;
-
-		engine->eop_flush = (file->f_flags & O_TRUNC) ? 1 : 0;
-	}*/
-
-	return 0;
+	
+	/*Should never ever happen otherwise something went horribly wrong*/
+	xdma_debug_assert_msg((engine->dir==DMA_TO_DEVICE)||(engine->dir==DMA_FROM_DEVICE), 
+		"Unexpected direction of XDMA engine", -ENODEV);
+	/* make sure that file access mode matches direction of engine and disallow 
+	unsupported operations  */
+	if(engine->dir==DMA_TO_DEVICE)
+	{
+		if((file_ptr->f_flags & O_ACCMODE)!=O_WRONLY)
+			return -EACCES;
+		file_ptr->f_mode&= ~FMODE_READ;
+		
+	}
+	else
+	{
+		if((file_ptr->f_flags & O_ACCMODE)!=O_RDONLY)
+			return -EACCES;
+		file_ptr->f_mode&= ~FMODE_WRITE;
+	}
+	
+	if (engine->streaming)
+	{	/*mark dev file as streaming device*/
+		stream_open(inode, file_ptr);
+		engine->eop_flush=(file_ptr->f_flags& O_TRUNC)? 1: 0;
+		
+			
+	}else if ((ret_val=generic_file_open(inode, file_ptr ))<0)
+	{
+		pr_err("Failed to open XDMA engine %s", engine->name);
+		return ret_val;	
+	}
+	
+	
+	return ret_val;
 }
 
 static int char_sgdma_close(struct inode *inode, struct file *file)
@@ -457,7 +491,8 @@ static int char_sgdma_close(struct inode *inode, struct file *file)
 		return rv;
 
 	engine = xcdev->engine;
-
+	
+	clear_bit(XENGINE_OPEN_BIT, &(engine->flags));
 	/*if (engine->streaming && engine->dir == DMA_FROM_DEVICE)
 		engine->device_open = 0;*/
 
