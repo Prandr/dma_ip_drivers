@@ -80,8 +80,8 @@ struct xdma_pci_dev {
 	int major;		/* major number */
 	int instance;		/* instance number */
 	int user_max;
-	int c2h_channel_max;
-	int h2c_channel_max;
+	int c2h_channel_num;
+	int h2c_channel_num;
 
 	unsigned int flags;
 	/* character device structures */
@@ -98,21 +98,6 @@ struct xdma_pci_dev {
 	struct xdma_cdev xvc_cdev;
 
 	void *data;
-};
-
-struct cdev_async_io {
-	struct kiocb *iocb;
-	struct xdma_io_cb *cb;
-	bool write;
-	bool cancel;
-	int cmpl_cnt;
-	int req_cnt;
-	spinlock_t lock;
-	struct work_struct wrk_itm;
-	struct cdev_async_io *next;
-	ssize_t res;
-	ssize_t res2;
-	int err_cnt;
 };
 
 #endif /* ifndef __XDMA_MODULE_H__ */

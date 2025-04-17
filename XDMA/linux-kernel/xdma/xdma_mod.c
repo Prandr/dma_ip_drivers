@@ -141,8 +141,8 @@ static struct xdma_pci_dev *xpdev_alloc(struct pci_dev *pdev)
 	xpdev->magic = MAGIC_DEVICE;
 	xpdev->pdev = pdev;
 	xpdev->user_max = MAX_USER_IRQ;
-	xpdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
-	xpdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+	xpdev->h2c_channel_num = XDMA_CHANNEL_NUM_MAX;
+	xpdev->c2h_channel_num = XDMA_CHANNEL_NUM_MAX;
 
 	xpdev_cnt++;
 	return xpdev;
@@ -160,7 +160,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		return -ENOMEM;
 
 	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &xpdev->user_max,
-			&xpdev->h2c_channel_max, &xpdev->c2h_channel_max);
+			&xpdev->h2c_channel_num, &xpdev->c2h_channel_num);
 	if (!hndl) {
 		rv = -EINVAL;
 		goto err_out;
@@ -172,19 +172,19 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_out;
 	}
 
-	if (xpdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
+	if (xpdev->h2c_channel_num > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximum H2C channel limit reached\n");
 		rv = -EINVAL;
 		goto err_out;
 	}
 
-	if (xpdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
+	if (xpdev->c2h_channel_num > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximum C2H channel limit reached\n");
 		rv = -EINVAL;
 		goto err_out;
 	}
 
-	if (!xpdev->h2c_channel_max && !xpdev->c2h_channel_max)
+	if (!xpdev->h2c_channel_num && !xpdev->c2h_channel_num)
 		pr_warn("NO engine found!\n");
 
 	if (xpdev->user_max) {
@@ -211,8 +211,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n",
 		dev_name(&pdev->dev), xdev->idx, pdev, xpdev, xdev,
-		xpdev->user_max, xpdev->h2c_channel_max,
-		xpdev->c2h_channel_max);
+		xpdev->user_max, xpdev->h2c_channel_num,
+		xpdev->c2h_channel_num);
 
 	xpdev->xdev = hndl;
 

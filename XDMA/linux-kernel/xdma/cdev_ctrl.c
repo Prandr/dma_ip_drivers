@@ -23,7 +23,7 @@
 #include "version.h"
 #include "xdma_cdev.h"
 #include "cdev_ctrl.h"
-
+#include "libxdma.h"
 /*
  * character device file operations for control bus (through control bridge)
  */
@@ -143,13 +143,12 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return -ENOTTY;
 	}
 
-		result = !_access_check((void __user *)arg,_IOC_SIZE(cmd));
+		
 
 
-	if (result) {
-		pr_err("bad access %ld.\n", result);
+	if (access_assert((void __user *)arg, _IOC_SIZE(cmd))<0)
 		return -EFAULT;
-	}
+
 
 	switch (cmd) {
 	case XDMA_IOCINFO:

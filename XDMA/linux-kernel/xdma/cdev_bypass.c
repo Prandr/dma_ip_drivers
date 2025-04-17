@@ -29,7 +29,7 @@ static int copy_desc_data(struct xdma_transfer *transfer, char __user *buf,
 	int i;
 	int copy_err;
 	int rc = 0;
-
+#if 0
 	if (!buf) {
 		pr_err("Invalid user buffer\n");
 		return -EINVAL;
@@ -58,7 +58,7 @@ static int copy_desc_data(struct xdma_transfer *transfer, char __user *buf,
 			rc = -ENOMEM;
 		}
 	}
-
+#endif
 	return rc;
 }
 
@@ -72,7 +72,7 @@ static ssize_t char_bypass_read(struct file *file, char __user *buf,
 	struct list_head *idx;
 	size_t buf_offset = 0;
 	int rc = 0;
-
+#if 0
 	rc = xcdev_check(__func__, xcdev, 1);
 	if (rc < 0)
 		return rc;
@@ -112,7 +112,7 @@ static ssize_t char_bypass_read(struct file *file, char __user *buf,
 	}
 
 	spin_unlock(&engine->lock);
-
+#endif
 	if (rc < 0)
 		return rc;
 	else
@@ -131,7 +131,7 @@ static ssize_t char_bypass_write(struct file *file, const char __user *buf,
 	size_t buf_offset = 0;
 	int rc = 0;
 	int copy_err;
-
+#if 0
 	rc = xcdev_check(__func__, xcdev, 1);
 	if (rc < 0)
 		return rc;
@@ -183,7 +183,7 @@ static ssize_t char_bypass_write(struct file *file, const char __user *buf,
 
 	spin_unlock(&engine->lock);
 
-
+#endif
 	return rc;
 }
 

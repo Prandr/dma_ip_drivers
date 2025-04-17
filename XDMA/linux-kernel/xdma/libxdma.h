@@ -32,7 +32,7 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/completion.h>
-
+#include <linux/atomic.h>
 
 
 /* SECTION: Preprocessor macros/constants */
@@ -239,8 +239,8 @@
 #define LINUX_VERSION_CHECK(major, minor, rev) (LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev))
 /*condense version checks into single check*/
 #define KERNEL_VERSION_CHECK(rhel_major, rhel_minor, linux_major, linux_minor, linux_rev) \
-    (((defined(RHEL_RELEASE_CODE) && (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(rhel_major, rhel_minor)))|| \
-    (!defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CHECK(linux_major, linux_minor, linux_rev)))) 
+    ((!defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CHECK(linux_major, linux_minor, linux_rev)))|| \
+    ((defined(RHEL_RELEASE_CODE) && (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(rhel_major, rhel_minor)))) 
     
 
 #if KERNEL_VERSION_CHECK(8, 0, 5, 0, 0)
@@ -249,14 +249,14 @@
 	#define _access_check(ptr, size) access_ok(VERIFY_WRITE, ptr, size)//write includes read. has no impact anyway
 #endif
 
-inline int __access_assert(void __user *ptr, unsigned long size, const char *func)
+static inline int __access_assert(void __user *ptr, unsigned long size, const char *func)
 {
 	if (!_access_check(ptr, size)) 
 	{
 		pr_err("Bad pointer %p in function %s", ptr, func);
 		return -EFAULT; 
 	}
-	return 0
+	return 0;
 }
 
 #define access_assert(ptr, size) __access_assert(ptr, size, __func__)
@@ -426,27 +426,33 @@ struct xdma_result {
 	u32 reserved_1[6];	/* padding */
 } __packed;
 
-
-struct dma_record {
-	void *virtual_addr;
-	dma_addr_t dma_addr;
-	size_t length;
-}
-
-struct xdma_transfer_request {
-	const char __user *buf,
+/*#define DMA_RECORD_TYPE(type) */
+/*generic DMA record for flexible bookkeeping*/
+#define DMA_RECORD(enclosed_type, var_name)\
+struct  {\
+	volatile enclosed_type *virtual_addr;\
+	dma_addr_t dma_addr;\
+	size_t length;\
+} var_name
+/*holds transfer parameters*/
+struct xdma_transfer_params {
+	char __user *buf;
 	size_t length; 
 	loff_t ep_addr;
 	enum dma_data_direction dir;
-}
+};
 /* Describes a (SG DMA) single transfer for the engine */
 #define XFER_FLAG_ST_C2H_EOP_RCVED	0x2	/* ST c2h only */ 
+/* holds data necessary to perform a trasfer*/
 struct xdma_transfer {
 	struct page **pages;
-	size_t num_pages;
+	unsigned int num_pages;
 	struct sg_table *sgt;
-	struct dma_record *adj_blocks;
-	size_t num_adj_blocks;
+	int count_after_sg_create;
+	int count_after_mapping;
+	DMA_RECORD(struct xdma_desc, *desc_adj_blocks);//bookkeeping for descriptors grouped in adjacent blocks
+	unsigned int num_adj_blocks;
+	unsigned int init_flags;
 };
 
 #define XENGINE_OPEN_BIT 0L
@@ -466,24 +472,26 @@ struct xdma_engine {
 
 	/* Engine state, configuration and flags */
 	//enum shutdown_state shutdown;	/* engine shutdown mode */
+	/*intrinsic properties of engine declared const*/
 	const enum dma_data_direction dir;
 	const u8 addr_align;		/* source/dest alignment in bytes */
 	const u8 len_granularity;	/* transfer length multiple */
 	const u8 addr_bits;		/* HW datapath address width */
-	const u8 channel:2;		/* engine indices */
-	const u8 streaming:1;
+	u8 channel:2;		/* engine indices */
+	u8 streaming:1;
 	const u8 filler1:1;	
-	const u8 running:1;		/* flag if the driver started engine */
-	const u8 non_incr_addr:1;	/* flag if non-incremental addressing used */
-	const u8 eop_flush:1;		/* st c2h only, flush up the data with eop */
+	u8 running:1;		/* flag if the driver started engine */
+	u8 non_incr_addr:1;	/* flag if non-incremental addressing used */
+	u8 eop_flush:1;		/* st c2h only, flush up the data with eop */
 	const u8 filler2:1;
 
 	const unsigned int adj_block_len;	/* max length of adjacent block of descriptors */
 	const unsigned desc_max;		/* max # descriptors per xfer */
+	struct xdma_transfer_params transfer_params;
+	struct xdma_transfer transfer;
 	struct dma_pool *desc_pool;
 	struct completion engine_compl;
-	struct xdma_transfer_request transfer_info;
-	struct xdma_transfer transfer;
+	u32 status;	
 	/* only used for MSIX mode to store per-engine interrupt mask value */
 	u32 interrupt_enable_mask_value;
 
@@ -504,7 +512,6 @@ struct xdma_engine {
 	//spinlock_t lock;		/* protects concurrent access */
 	int msix_irq_line;		/* MSI-X vector for this engine */
 	u32 irq_bitmask;		/* IRQ bit mask for this engine */
-	struct work_struct work;	/* Work queue for interrupt handling */
 
 	//struct mutex desc_lock;		/* protects concurrent access */
 	
@@ -525,7 +532,7 @@ struct xdma_user_irq {
 };
 
 /* XDMA PCIe device specific book-keeping */
-#define XDEV_FLAG_OFFLINE	0x1
+#define XDEV_FLAG_OFFLINE_BIT	0L
 struct xdma_dev {
 	struct list_head list_head;
 	struct list_head rcu_node;
@@ -537,7 +544,7 @@ struct xdma_dev {
 	const char *mod_name;		/* name of module owning the dev */
 
 	spinlock_t lock;		/* protects concurrent access */
-	//unsigned int flags;
+	volatile unsigned long flags;
 
 	/* PCIe BAR management */
 	void __iomem *bar[XDMA_BAR_NUM];	/* addresses for mapped BARs */
@@ -549,8 +556,8 @@ struct xdma_dev {
 	int got_regions;	/* flag if probe() obtained the regions */
 
 	int user_max;
-	int c2h_channel_max;
-	int h2c_channel_max;
+	int c2h_channel_num;
+	int h2c_channel_num;
 	
 	const unsigned int max_read_request_size;
 	const unsigned int datapath_width;

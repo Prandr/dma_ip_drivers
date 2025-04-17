@@ -54,7 +54,7 @@ MODULE_PARM_DESC(enable_st_c2h_credit,
 
 #define XDMA_PERF_NUM_DESC 128
 
-
+#define const_cast(type, var) *((type*) &(var))
 
 
 /*
@@ -272,7 +272,7 @@ static u32 read_interrupts(struct xdma_dev *xdev)
 	/* return interrupts: user in upper 16-bits, channel in lower 16-bits */
 	return build_u32(hi, lo);
 }
-
+#if 0
 void enable_perf(struct xdma_engine *engine)
 {
 	u32 w;
@@ -322,8 +322,8 @@ void get_perf_stats(struct xdma_engine *engine)
 	hi = read_register(&engine->regs->perf_pnd_hi);
 	lo = read_register(&engine->regs->perf_pnd_lo);
 	engine->xdma_perf->pending_count = build_u64(hi, lo);
-}
-
+}*/
+#endif
 static int engine_reg_dump(struct xdma_engine *engine)
 {
 	u32 w;
@@ -611,7 +611,7 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	mask = ch_irq & xdev->mask_irq_h2c;
 	if (mask) {
 		int channel = 0;
-		int max = xdev->h2c_channel_max;
+		int max = xdev->h2c_channel_num;
 
 		/* iterate over H2C (PCIe read) */
 		for (channel = 0; channel < max && mask; channel++) {
@@ -630,7 +630,7 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	mask = ch_irq & xdev->mask_irq_c2h;
 	if (mask) {
 		int channel = 0;
-		int max = xdev->c2h_channel_max;
+		int max = xdev->c2h_channel_num;
 
 		/* iterate over C2H (PCIe write) */
 		for (channel = 0; channel < max && mask; channel++) {
@@ -1045,7 +1045,7 @@ static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 	}
 
 	if ((interrupt_mode == 3 || !interrupt_mode) && msi_msix_capable(pdev, PCI_CAP_ID_MSIX)) {
-		int req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max +
+		int req_nvec = xdev->c2h_channel_num + xdev->h2c_channel_num +
 			       xdev->user_max;
 
 
@@ -1110,7 +1110,7 @@ static void prog_irq_msix_user(struct xdma_dev *xdev, bool clear)
 	struct interrupt_regs *int_regs =
 		(struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
 					  XDMA_OFS_INT_CTRL);
-	u32 i = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	u32 i = xdev->c2h_channel_num + xdev->h2c_channel_num;
 	u32 max = i + xdev->user_max;
 	int j;
 
@@ -1140,7 +1140,7 @@ static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 	struct interrupt_regs *int_regs =
 		(struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
 					  XDMA_OFS_INT_CTRL);
-	u32 max = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	u32 max = xdev->c2h_channel_num + xdev->h2c_channel_num;
 	u32 i;
 	int j;
 
@@ -1177,7 +1177,7 @@ static void irq_msix_channel_teardown(struct xdma_dev *xdev)
 	prog_irq_msix_channel(xdev, 1);
 
 	engine = xdev->engine_h2c;
-	for (i = 0; i < xdev->h2c_channel_max; i++, j++, engine++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++, j++, engine++) {
 		if (!engine->msix_irq_line)
 			break;
 		dbg_sg("Release IRQ#%d for engine %p\n", engine->msix_irq_line,
@@ -1186,7 +1186,7 @@ static void irq_msix_channel_teardown(struct xdma_dev *xdev)
 	}
 
 	engine = xdev->engine_c2h;
-	for (i = 0; i < xdev->c2h_channel_max; i++, j++, engine++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++, j++, engine++) {
 		if (!engine->msix_irq_line)
 			break;
 		dbg_sg("Release IRQ#%d for engine %p\n", engine->msix_irq_line,
@@ -1211,9 +1211,9 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	if (!xdev->msix_enabled)
 		return 0;
 
-	j = xdev->h2c_channel_max;
+	j = xdev->h2c_channel_num;
 	engine = xdev->engine_h2c;
-	for (i = 0; i < xdev->h2c_channel_max; i++, engine++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++, engine++) {
 		vector = pci_irq_vector(xdev->pdev, i);
 
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
@@ -1228,7 +1228,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	}
 
 	engine = xdev->engine_c2h;
-	for (i = 0; i < xdev->c2h_channel_max; i++, j++, engine++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++, j++, engine++) {
 		vector = pci_irq_vector(xdev->pdev, j);
 
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
@@ -1258,7 +1258,7 @@ static void irq_msix_user_teardown(struct xdma_dev *xdev)
 	if (!xdev->msix_enabled)
 		return;
 
-	j = xdev->h2c_channel_max + xdev->c2h_channel_max;
+	j = xdev->h2c_channel_num + xdev->c2h_channel_num;
 
 	prog_irq_msix_user(xdev, 1);
 
@@ -1273,7 +1273,7 @@ static void irq_msix_user_teardown(struct xdma_dev *xdev)
 static int irq_msix_user_setup(struct xdma_dev *xdev)
 {
 	int i;
-	int j = xdev->h2c_channel_max + xdev->c2h_channel_max;
+	int j = xdev->h2c_channel_num + xdev->c2h_channel_num;
 	int rv = 0;
 
 	/* vectors set in probe_scan_for_msi() */
@@ -1443,50 +1443,25 @@ static void engine_alignments(struct xdma_engine *engine)
 	dbg_init("align_bytes = %d\n", align_bytes);
 	dbg_init("granularity_bytes = %d\n", granularity_bytes);
 	dbg_init("address_bits = %d\n", address_bits);
-
+/*cast away const just for initialisation)*/
 	if (w) {
-		engine->addr_align = align_bytes;
-		engine->len_granularity = granularity_bytes;
-		engine->addr_bits = address_bits;
+		const_cast(u8, engine->addr_align) = align_bytes;
+		const_cast(u8, engine->len_granularity) = granularity_bytes;
+		const_cast(u8, engine->addr_bits) = address_bits;
 	} else {
 		/* Some default values if alignments are unspecified */
-		engine->addr_align = 1;
-		engine->len_granularity = 1;
-		engine->addr_bits = 64;
+		const_cast(u8, engine->addr_align) = 1;
+		const_cast(u8, engine->len_granularity) = 1;
+		const_cast(u8, engine->addr_bits) = 64;
 	}
 }
 
 static void engine_free_resource(struct xdma_engine *engine)
 {
-	struct xdma_dev *xdev = engine->xdev;
+	//struct xdma_dev *xdev = engine->xdev;
 
-	/* Release memory use for descriptor writebacks */
-	if (engine->poll_mode_addr_virt) {
-		dbg_sg("Releasing memory for descriptor writeback\n");
-		dma_free_coherent(&xdev->pdev->dev, sizeof(struct xdma_poll_wb),
-				  engine->poll_mode_addr_virt,
-				  engine->poll_mode_bus);
-		dbg_sg("Released memory for descriptor writeback\n");
-		engine->poll_mode_addr_virt = NULL;
-	}
-
-	if (engine->desc) {
-		dbg_init("device %s, engine %s pre-alloc desc 0x%p,0x%llx.\n",
-			 dev_name(&xdev->pdev->dev), engine->name, engine->desc,
-			 engine->desc_bus);
-		dma_free_coherent(&xdev->pdev->dev,
-				  engine->desc_max * sizeof(struct xdma_desc),
-				  engine->desc, engine->desc_bus);
-		engine->desc = NULL;
-	}
-
-	if (engine->cyclic_result) {
-		dma_free_coherent(
-			&xdev->pdev->dev,
-			engine->desc_max * sizeof(struct xdma_result),
-			engine->cyclic_result, engine->cyclic_result_bus);
-		engine->cyclic_result = NULL;
-	}
+	
+	 dma_pool_destroy(engine->desc_pool);
 }
 
 static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
@@ -1546,7 +1521,7 @@ static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 static int engine_init_regs(struct xdma_engine *engine)
 {
 	u32 reg_value;
-	int rv = 0;
+	/*int rv = 0;*/
 
 	write_register(XDMA_CTRL_NON_INCR_ADDR, &engine->regs->control_w1c,
 		       (unsigned long)(&engine->regs->control_w1c) -
@@ -1597,44 +1572,28 @@ static int engine_init_regs(struct xdma_engine *engine)
 
 	return 0;
 
-fail_wb:
-	return rv;
 }
 
 static int engine_alloc_resource(struct xdma_engine *engine)
 {
 	struct xdma_dev *xdev = engine->xdev;
-
-	engine->desc = dma_alloc_coherent(&xdev->pdev->dev,
-					  engine->desc_max *
-						  sizeof(struct xdma_desc),
-					  &engine->desc_bus, GFP_KERNEL);
-	if (!engine->desc) {
-		pr_warn("dev %s, %s pre-alloc desc OOM.\n",
-			dev_name(&xdev->pdev->dev), engine->name);
-		goto err_out;
-	}
-
-
-
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
-		engine->cyclic_result = dma_alloc_coherent(
-			&xdev->pdev->dev,
-			engine->desc_max * sizeof(struct xdma_result),
-			&engine->cyclic_result_bus, GFP_KERNEL);
-
-		if (!engine->cyclic_result) {
-			pr_warn("%s, %s pre-alloc result OOM.\n",
-				dev_name(&xdev->pdev->dev), engine->name);
-			goto err_out;
-		}
-	}
+	char pool_name[32]="Descriptor pool for ";/*20 characters*/
+	
+	engine->desc_pool= dma_pool_create(strncat(pool_name, engine->name, sizeof(pool_name)-20-1), &(xdev->pdev->dev),
+                engine->adj_block_len * sizeof(struct xdma_desc), sizeof(struct xdma_desc), XDMA_PAGE_SIZE);
+        if(unlikely(engine->desc_pool==NULL))
+        	{
+        		pr_err("Failed to create descriptor pool for engine %s", engine->name);
+        		return -ENOMEM;
+        	}
+        	
+	
 
 	return 0;
-
+/*
 err_out:
 	engine_free_resource(engine);
-	return -ENOMEM;
+	return -ENOMEM;*/
 }
 
 static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
@@ -1666,19 +1625,20 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 		engine->streaming = 1;
 
 	/* remember SG DMA direction */
-	engine->dir = dir;
+	const_cast(enum dma_data_direction, engine->dir) = dir;
 	snprintf(engine->name, sizeof(engine->name), "%d-%s%d-%s", xdev->idx,
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
 		engine->streaming ? "ST" : "MM");
-
+	/*TODO rework engine init to set desc_max properly*/
 	if (enable_st_c2h_credit && engine->streaming &&
 	    engine->dir == DMA_FROM_DEVICE)
-	    	engine->desc_max = XDMA_ENGINE_CREDIT_XFER_MAX_DESC;
+	    	const_cast(unsigned int, engine->desc_max) = XDMA_ENGINE_CREDIT_XFER_MAX_DESC;
 	else
-	    	engine->desc_max = XDMA_ENGINE_XFER_MAX_DESC;
-
+	    	const_cast(unsigned int, engine->desc_max) = XDMA_ENGINE_XFER_MAX_DESC;
+	    	
+	const_cast(unsigned int, engine->adj_block_len)=engine->xdev->max_read_request_size /sizeof(struct xdma_desc);
 	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
-		 (int)engine->irq_bitmask);
+		 (unsigned int) (int)engine->irq_bitmask);
 
 	/* initialize the deferred work for transfer completion */
 
@@ -1696,7 +1656,7 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	rv = engine_init_regs(engine);
 	if (rv)
 		return rv;
-
+	__init_completion(&(engine->engine_compl));
 
 
 	return 0;
@@ -2049,8 +2009,8 @@ int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine)
 	struct xdma_transfer *transfer;
 	u64 ep_addr = 0;
 	int num_desc_in_a_loop = XDMA_PERF_NUM_DESC;
-	int size_in_desc = engine->xdma_perf->transfer_size;
-	int size = size_in_desc * num_desc_in_a_loop;
+	/*int size_in_desc = engine->xdma_perf->transfer_size;
+	int size = size_in_desc * num_desc_in_a_loop;*/
 	int i;
 	int rv = -ENOMEM;
 	unsigned char free_desc = 0;
@@ -2213,33 +2173,6 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		xdev->user_irq[i].user_idx = i; /* 0 based */
 	}
 
-	engine = xdev->engine_h2c;
-	for (i = 0; i < XDMA_CHANNEL_NUM_MAX; i++, engine++) {
-		spin_lock_init(&engine->lock);
-		mutex_init(&engine->desc_lock);
-		INIT_LIST_HEAD(&engine->transfer_list);
-#if HAS_SWAKE_UP
-		init_swait_queue_head(&engine->shutdown_wq);
-		init_swait_queue_head(&engine->xdma_perf_wq);
-#else
-		init_waitqueue_head(&engine->shutdown_wq);
-		init_waitqueue_head(&engine->xdma_perf_wq);
-#endif
-	}
-
-	engine = xdev->engine_c2h;
-	for (i = 0; i < XDMA_CHANNEL_NUM_MAX; i++, engine++) {
-		spin_lock_init(&engine->lock);
-		mutex_init(&engine->desc_lock);
-		INIT_LIST_HEAD(&engine->transfer_list);
-#if HAS_SWAKE_UP
-		init_swait_queue_head(&engine->shutdown_wq);
-		init_swait_queue_head(&engine->xdma_perf_wq);
-#else
-		init_waitqueue_head(&engine->shutdown_wq);
-		init_waitqueue_head(&engine->xdma_perf_wq);
-#endif
-	}
 
 	return xdev;
 }
@@ -2342,7 +2275,7 @@ static void remove_engines(struct xdma_dev *xdev)
 	}
 
 	/* iterate over channels */
-	for (i = 0; i < xdev->h2c_channel_max; i++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		engine = &xdev->engine_h2c[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			dbg_sg("Remove %s, %d", engine->name, i);
@@ -2353,7 +2286,7 @@ static void remove_engines(struct xdma_dev *xdev)
 		}
 	}
 
-	for (i = 0; i < xdev->c2h_channel_max; i++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			dbg_sg("Remove %s, %d", engine->name, i);
@@ -2363,6 +2296,67 @@ static void remove_engines(struct xdma_dev *xdev)
 			dbg_sg("%s, %d removed", engine->name, i);
 		}
 	}
+}
+
+static inline void set_max_read_request_size(struct xdma_dev *xdev)
+{
+	unsigned int max_read_request_size=128;
+	struct config_regs *cfg_regs= (struct config_regs *)(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_CONFIG);	
+	u32 mrrs_reg=ioread32( &(cfg_regs->max_read_request_size));
+	switch(mrrs_reg)
+	{
+		case 0:
+			max_read_request_size= 128;
+			break;
+		case 1:
+			max_read_request_size= 256;
+			break;
+		case 2:
+			max_read_request_size= 512;
+			break;
+		case 3:
+			max_read_request_size= 1024;
+			break;
+		case 4:
+			max_read_request_size= 2048;
+			break;
+		case 5:
+			max_read_request_size= 4096;
+			break;
+		default:
+			pr_warn("Unexpected value for MRRS register 0x%x. Falling back to 128 bytes", mrrs_reg);
+			max_read_request_size= 128;
+			break;
+	}
+	
+	const_cast(unsigned int, xdev->max_read_request_size)=max_read_request_size;
+}
+
+static inline void set_datapath_width(struct xdma_dev *xdev)
+{
+	unsigned int datapath_width=8;
+	struct config_regs *cfg_regs= (struct config_regs *)(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_CONFIG);
+	u32 datapath_reg=ioread32( &(cfg_regs->datapath_width));
+	switch(datapath_reg)
+	{
+		case 0:
+			datapath_width= 64/8;
+			break;
+		case 1:
+			datapath_width= 128/8;
+			break;	
+		case 2:
+			datapath_width= 256/8;
+			break;	
+		case 3:
+			datapath_width= 512/8;
+			break;
+		default:
+			pr_warn("Unexpected value for datapath width register 0x%x. Falling back to 64 bits bytes", datapath_reg);
+			datapath_width= 64/8;
+			break;		
+	}
+	const_cast(unsigned int, xdev->datapath_width)=datapath_width;
 }
 
 static int probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
@@ -2428,19 +2422,19 @@ static int probe_engines(struct xdma_dev *xdev)
 	}
 
 	/* iterate over channels */
-	for (i = 0; i < xdev->h2c_channel_max; i++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		rv = probe_for_engine(xdev, DMA_TO_DEVICE, i);
 		if (rv)
 			break;
 	}
-	xdev->h2c_channel_max = i;
+	xdev->h2c_channel_num = i;
 
-	for (i = 0; i < xdev->c2h_channel_max; i++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		rv = probe_for_engine(xdev, DMA_FROM_DEVICE, i);
 		if (rv)
 			break;
 	}
-	xdev->c2h_channel_max = i;
+	xdev->c2h_channel_num = i;
 
 	return 0;
 }
@@ -2460,7 +2454,7 @@ static void pci_enable_capability(struct pci_dev *pdev, int cap)
 }
 
 void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
-		       int *h2c_channel_max, int *c2h_channel_max)
+		       int *h2c_channel_num, int *c2h_channel_num)
 {
 	struct xdma_dev *xdev = NULL;
 	int rv = 0;
@@ -2473,19 +2467,19 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 		goto err_alloc_dev_instance;
 	xdev->mod_name = mname;
 	xdev->user_max = *user_max;
-	xdev->h2c_channel_max = *h2c_channel_max;
-	xdev->c2h_channel_max = *c2h_channel_max;
+	xdev->h2c_channel_num = *h2c_channel_num;
+	xdev->c2h_channel_num = *c2h_channel_num;
 
-	xdma_device_flag_set(xdev, XDEV_FLAG_OFFLINE);
+	set_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 
 	if (xdev->user_max == 0 || xdev->user_max > MAX_USER_IRQ)
 		xdev->user_max = MAX_USER_IRQ;
-	if (xdev->h2c_channel_max == 0 ||
-	    xdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX)
-		xdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
-	if (xdev->c2h_channel_max == 0 ||
-	    xdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX)
-		xdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+	if (xdev->h2c_channel_num == 0 ||
+	    xdev->h2c_channel_num > XDMA_CHANNEL_NUM_MAX)
+		xdev->h2c_channel_num = XDMA_CHANNEL_NUM_MAX;
+	if (xdev->c2h_channel_num == 0 ||
+	    xdev->c2h_channel_num > XDMA_CHANNEL_NUM_MAX)
+		xdev->c2h_channel_num = XDMA_CHANNEL_NUM_MAX;
 
 	rv = xdev_list_add(xdev);
 	if (rv < 0)
@@ -2522,7 +2516,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	rv = map_bars(xdev, pdev);
 	if (rv)
 		goto err_map_bars;
-
+	
 	rv = set_dma_mask(pdev);
 	if (rv)
 		goto err_set_dma_mask;
@@ -2533,6 +2527,8 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	user_interrupts_disable(xdev, ~0);
 	read_interrupts(xdev);
 
+	set_max_read_request_size(xdev);
+	set_datapath_width(xdev);
 	rv = probe_engines(xdev);
 	if (rv)
 		goto err_probe_engines;
@@ -2552,10 +2548,10 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	read_interrupts(xdev);
 
 	*user_max = xdev->user_max;
-	*h2c_channel_max = xdev->h2c_channel_max;
-	*c2h_channel_max = xdev->c2h_channel_max;
+	*h2c_channel_num = xdev->h2c_channel_num;
+	*c2h_channel_num = xdev->c2h_channel_num;
 
-	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
+	clear_bit(XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 	return (void *)xdev;
 
 err_irq_setup:
@@ -2637,37 +2633,35 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		return;
 
 	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
-	xdma_device_flag_set(xdev, XDEV_FLAG_OFFLINE);
+	set_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 
 	/* wait for all engines to be idle */
-	for (i = 0; i < xdev->h2c_channel_max; i++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		unsigned long flags;
 
 		engine = &xdev->engine_h2c[i];
 
 		if (engine->magic == MAGIC_ENGINE) {
-			spin_lock_irqsave(&engine->lock, flags);
-			engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;
-
+			
 			rv = xdma_engine_stop(engine);
 			if (rv < 0)
 				pr_err("Failed to stop engine\n");
-			spin_unlock_irqrestore(&engine->lock, flags);
+			
 		}
 	}
 
-	for (i = 0; i < xdev->c2h_channel_max; i++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		unsigned long flags;
 
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
-			spin_lock_irqsave(&engine->lock, flags);
-			engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;
+			
+			/*engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;*/
 
 			rv = xdma_engine_stop(engine);
 			if (rv < 0)
 				pr_err("Failed to stop engine\n");
-			spin_unlock_irqrestore(&engine->lock, flags);
+			
 		}
 	}
 
@@ -2695,23 +2689,19 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 
 	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 
-	for (i = 0; i < xdev->h2c_channel_max; i++) {
+	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		engine = &xdev->engine_h2c[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			engine_init_regs(engine);
-			spin_lock_irqsave(&engine->lock, flags);
-			engine->shutdown &= ~ENGINE_SHUTDOWN_REQUEST;
-			spin_unlock_irqrestore(&engine->lock, flags);
+
 		}
 	}
 
-	for (i = 0; i < xdev->c2h_channel_max; i++) {
+	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			engine_init_regs(engine);
-			spin_lock_irqsave(&engine->lock, flags);
-			engine->shutdown &= ~ENGINE_SHUTDOWN_REQUEST;
-			spin_unlock_irqrestore(&engine->lock, flags);
+
 		}
 	}
 
@@ -2724,7 +2714,7 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 		read_interrupts(xdev);
 	}
 
-	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
+	clear_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 	pr_info("xdev 0x%p, done.\n", xdev);
 }
 

@@ -435,13 +435,13 @@ static int char_sgdma_open(struct inode *inode, struct file *file)
 	xcdev = (struct xdma_cdev *)file->private_data;
 	engine = xcdev->engine;
 
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
+	/*if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
 		if (engine->device_open == 1)
 			return -EBUSY;
 		engine->device_open = 1;
 
 		engine->eop_flush = (file->f_flags & O_TRUNC) ? 1 : 0;
-	}
+	}*/
 
 	return 0;
 }
@@ -458,8 +458,8 @@ static int char_sgdma_close(struct inode *inode, struct file *file)
 
 	engine = xcdev->engine;
 
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE)
-		engine->device_open = 0;
+	/*if (engine->streaming && engine->dir == DMA_FROM_DEVICE)
+		engine->device_open = 0;*/
 
 	return 0;
 }

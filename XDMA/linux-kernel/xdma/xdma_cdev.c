@@ -23,7 +23,6 @@
 
 static struct class *g_xdma_class;
 
-struct kmem_cache *cdev_cache;
 
 enum cdev_type {
 	CHAR_USER,
@@ -449,14 +448,14 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 
 	if (xpdev_flag_test(xpdev, XDF_CDEV_SG)) {
 		/* iterate over channels */
-		for (i = 0; i < xpdev->h2c_channel_max; i++) {
+		for (i = 0; i < xpdev->h2c_channel_num; i++) {
 			/* remove SG DMA character device */
 			rv = destroy_xcdev(&xpdev->sgdma_h2c_cdev[i]);
 			if (rv < 0)
 				pr_err("Failed to destroy h2c xcdev %d error :0x%x\n",
 						i, rv);
 		}
-		for (i = 0; i < xpdev->c2h_channel_max; i++) {
+		for (i = 0; i < xpdev->c2h_channel_num; i++) {
 			rv = destroy_xcdev(&xpdev->sgdma_c2h_cdev[i]);
 			if (rv < 0)
 				pr_err("Failed to destroy c2h xcdev %d error 0x%x\n",
@@ -498,14 +497,14 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 
 	if (xpdev_flag_test(xpdev, XDF_CDEV_BYPASS)) {
 		/* iterate over channels */
-		for (i = 0; i < xpdev->h2c_channel_max; i++) {
+		for (i = 0; i < xpdev->h2c_channel_num; i++) {
 			/* remove DMA Bypass character device */
 			rv = destroy_xcdev(&xpdev->bypass_h2c_cdev[i]);
 			if (rv < 0)
 				pr_err("Failed to destroy bypass h2c cdev %d error 0x%x\n",
 					i, rv);
 		}
-		for (i = 0; i < xpdev->c2h_channel_max; i++) {
+		for (i = 0; i < xpdev->c2h_channel_num; i++) {
 			rv = destroy_xcdev(&xpdev->bypass_c2h_cdev[i]);
 			if (rv < 0)
 				pr_err("Failed to destroy bypass c2h %d error 0x%x\n",
@@ -550,7 +549,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 	xpdev_flag_set(xpdev, XDF_CDEV_EVENT);
 
 	/* iterate over channels */
-	for (i = 0; i < xpdev->h2c_channel_max; i++) {
+	for (i = 0; i < xpdev->h2c_channel_num; i++) {
 		engine = &xdev->engine_h2c[i];
 
 		if (engine->magic != MAGIC_ENGINE)
@@ -564,7 +563,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 		}
 	}
 
-	for (i = 0; i < xpdev->c2h_channel_max; i++) {
+	for (i = 0; i < xpdev->c2h_channel_num; i++) {
 		engine = &xdev->engine_c2h[i];
 
 		if (engine->magic != MAGIC_ENGINE)
@@ -581,7 +580,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 
 	/* Initialize Bypass Character Device */
 	if (xdev->bypass_bar_idx > 0) {
-		for (i = 0; i < xpdev->h2c_channel_max; i++) {
+		for (i = 0; i < xpdev->h2c_channel_num; i++) {
 			engine = &xdev->engine_h2c[i];
 
 			if (engine->magic != MAGIC_ENGINE)
@@ -596,7 +595,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 			}
 		}
 
-		for (i = 0; i < xpdev->c2h_channel_max; i++) {
+		for (i = 0; i < xpdev->c2h_channel_num; i++) {
 			engine = &xdev->engine_c2h[i];
 
 			if (engine->magic != MAGIC_ENGINE)
@@ -670,23 +669,14 @@ int xdma_cdev_init(void)
 		return -EINVAL;
 	}
 
-	/* using kmem_cache_create to enable sequential cleanup */
-	cdev_cache = kmem_cache_create("cdev_cache",
-					sizeof(struct cdev_async_io), 0,
-					SLAB_HWCACHE_ALIGN, NULL);
-
-	if (!cdev_cache) {
-		pr_info("memory allocation for cdev_cache failed. OOM\n");
-		return -ENOMEM;
-	}
+	
 
 	return 0;
 }
 
 void xdma_cdev_cleanup(void)
 {
-	if (cdev_cache)
-		kmem_cache_destroy(cdev_cache);
+	
 
 	if (g_xdma_class)
 		class_destroy(g_xdma_class);
