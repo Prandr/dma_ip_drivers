@@ -1656,8 +1656,10 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	rv = engine_init_regs(engine);
 	if (rv)
 		return rv;
+	
 	__init_completion(&(engine->engine_compl));
-
+	pr_info("XDMA engine %s can use up to %u descriptors with adjacent block size %u", 
+		engine->name,engine->desc_max, engine->adj_block_len);
 
 	return 0;
 }
@@ -2529,6 +2531,8 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	set_max_read_request_size(xdev);
 	set_datapath_width(xdev);
+	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte", 
+		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width);
 	rv = probe_engines(xdev);
 	if (rv)
 		goto err_probe_engines;
