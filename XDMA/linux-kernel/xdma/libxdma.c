@@ -56,6 +56,11 @@ MODULE_PARM_DESC(enable_st_c2h_credit,
 
 #define const_cast(type, var) *((type*) &(var))
 
+#if !LINUX_VERSION_CHECK(4,13,0)
+#define __GFP_RETRY_MAYFAIL __GFP_RETRY
+#elif !LINUX_VERSION_CHECK(4,12,0)
+#error "Minimum supported Linux version is 4.12"
+#endif
 
 /*
  * xdma device management
@@ -1596,13 +1601,23 @@ err_out:
 	return -ENOMEM;*/
 }
 
-static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
-		       int offset, enum dma_data_direction dir, int channel)
+static unsigned int get_engine_offset(enum dma_data_direction dir, int channel)
+{
+	unsigned int offset =channel * CHANNEL_SPACING;
+	if (dir == DMA_FROM_DEVICE)
+		offset+=H2C_CHANNEL_OFFSET;
+	return offset;
+}
+
+static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int channel)
 {
 	int rv;
 	u32 val;
-
+	unsigned int desc_max;
+	unsigned int offset=get_engine_offset(dir, channel);
+	struct xdma_engine *engine= dir==DMA_TO_DEVICE? &(xdev->engine_h2c[channel]): &(xdev->engine_c2h[channel]);
 	dbg_init("channel %d, offset 0x%x, dir %d.\n", channel, offset, dir);
+	
 
 	/* set magic */
 	engine->magic = MAGIC_ENGINE;
@@ -1629,12 +1644,11 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	snprintf(engine->name, sizeof(engine->name), "%d-%s%d-%s", xdev->idx,
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
 		engine->streaming ? "ST" : "MM");
-	/*TODO rework engine init to set desc_max properly*/
-	if (enable_st_c2h_credit && engine->streaming &&
-	    engine->dir == DMA_FROM_DEVICE)
-	    	const_cast(unsigned int, engine->desc_max) = XDMA_ENGINE_CREDIT_XFER_MAX_DESC;
-	else
-	    	const_cast(unsigned int, engine->desc_max) = XDMA_ENGINE_XFER_MAX_DESC;
+
+	
+	const_cast(unsigned int, engine->desc_max) = (XDMA_DESC_FIFO_DEPTH * xdev->datapath_width) /sizeof(struct xdma_desc)
+	    				/(dir==DMA_TO_DEVICE? xdev->h2c_channel_num: xdev->c2h_channel_num);
+	
 	    	
 	const_cast(unsigned int, engine->adj_block_len)=engine->xdev->max_read_request_size /sizeof(struct xdma_desc);
 	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
@@ -2287,6 +2301,7 @@ static void remove_engines(struct xdma_dev *xdev)
 			dbg_sg("%s, %d removed", engine->name, i);
 		}
 	}
+	kvfree(xdev->engine_h2c);
 
 	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		engine = &xdev->engine_c2h[i];
@@ -2298,6 +2313,7 @@ static void remove_engines(struct xdma_dev *xdev)
 			dbg_sg("%s, %d removed", engine->name, i);
 		}
 	}
+	kvfree(xdev->engine_c2h);
 }
 
 static inline void set_max_read_request_size(struct xdma_dev *xdev)
@@ -2361,11 +2377,12 @@ static inline void set_datapath_width(struct xdma_dev *xdev)
 	const_cast(unsigned int, xdev->datapath_width)=datapath_width;
 }
 
-static int probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
+
+static bool probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
 			    int channel)
 {
 	struct engine_regs *regs;
-	int offset = channel * CHANNEL_SPACING;
+	int offset = get_engine_offset(dir, channel);
 	u32 engine_id;
 	u32 engine_id_expected;
 	u32 channel_id;
@@ -2380,11 +2397,9 @@ static int probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
 		engine_id_expected = XDMA_ID_H2C;
 		engine = &xdev->engine_h2c[channel];
 	} else {
-		offset += H2C_CHANNEL_OFFSET;
 		engine_id_expected = XDMA_ID_C2H;
 		engine = &xdev->engine_c2h[channel];
 	}
-
 	regs = xdev->bar[xdev->config_bar_idx] + offset;
 	engine_id = get_engine_id(regs);
 	channel_id = get_engine_channel_id(regs);
@@ -2395,49 +2410,68 @@ static int probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
 			dir == DMA_TO_DEVICE ? "H2C" : "C2H", channel, offset,
 			engine_id, channel_id, engine_id_expected,
 			channel_id != channel);
-		return -EINVAL;
+		return false;
 	}
 
 	dbg_init("found AXI %s %d engine, reg. off 0x%x, id 0x%x,0x%x.\n",
 		 dir == DMA_TO_DEVICE ? "H2C" : "C2H", channel, offset,
 		 engine_id, channel_id);
 
-	/* allocate and initialize engine */
-	rv = engine_init(engine, xdev, offset, dir, channel);
-	if (rv != 0) {
-		pr_info("failed to create AXI %s %d engine.\n",
-			dir == DMA_TO_DEVICE ? "H2C" : "C2H", channel);
-		return rv;
-	}
-
-	return 0;
+	return true;
 }
 
 static int probe_engines(struct xdma_dev *xdev)
 {
-	int i;
+	int i=0;
 	int rv = 0;
 
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	/* iterate over channels */
-	for (i = 0; i < xdev->h2c_channel_num; i++) {
-		rv = probe_for_engine(xdev, DMA_TO_DEVICE, i);
-		if (rv)
-			break;
-	}
+	/*probe engines first to find number of engines. 
+	this allows to correctly calculate max descriptors as well as dynamic allocation*/
+	while(probe_for_engine(xdev, DMA_TO_DEVICE, i))  ++i;
+	
 	xdev->h2c_channel_num = i;
-
-	for (i = 0; i < xdev->c2h_channel_num; i++) {
-		rv = probe_for_engine(xdev, DMA_FROM_DEVICE, i);
-		if (rv)
-			break;
+	xdev->engine_h2c=kvcalloc(xdev->h2c_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+	if(xdev->engine_h2c==NULL)
+	{
+		pr_err("Failed to allocate memory for %s engines", "H2C");
+		return -ENOMEM;
 	}
+/* allocate and initialize engine */
+	for (i=0;i<xdev->h2c_channel_num;i++)
+	{
+		rv = engine_init(xdev, DMA_TO_DEVICE, i);
+		if (rv != 0) 
+		{
+			pr_err("failed to create AXI %s %d engine.\n", "H2C", i);
+			return rv;
+		}
+	}
+	
+	
+	
+	i=0;
+	while(probe_for_engine(xdev, DMA_FROM_DEVICE, i)) ++i;
+	
 	xdev->c2h_channel_num = i;
-
+	xdev->engine_c2h=kvcalloc(xdev->c2h_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+	if(xdev->engine_c2h==NULL)
+	{
+		pr_err("Failed to allocate memory for %s engines", "C2H");
+		return -ENOMEM;
+	}
+		
+	for (i=0;i<xdev->c2h_channel_num;i++)
+	{
+		rv = engine_init( xdev, DMA_FROM_DEVICE, i);
+		if (rv != 0) 
+		{
+			pr_err("failed to create AXI %s %d engine.\n",
+				"C2H", i);
+			return rv;
+		}
+	}
 	return 0;
 }
 

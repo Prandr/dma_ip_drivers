@@ -50,7 +50,6 @@
  * .REG_IRQ_OUT	(reg_irq_from_ch[(channel*2) +: 2]),
  */
 #define XDMA_ENG_IRQ_NUM	(1)
-#define XDMA_MAX_ADJ_BLOCK_SIZE	0x40
 #define XDMA_PAGE_SIZE		0x1000
 #define RX_STATUS_EOP		(1)
 
@@ -58,9 +57,8 @@
 #define XDMA_OFS_INT_CTRL	(0x2000UL)
 #define XDMA_OFS_CONFIG		(0x3000UL)
 
-/* maximum number of desc per transfer request */
-#define XDMA_ENGINE_XFER_MAX_DESC		0x800
-#define XDMA_ENGINE_CREDIT_XFER_MAX_DESC	0x3FF
+#define XDMA_DESC_FIFO_DEPTH 512
+
 
 /* maximum size of a single DMA transfer descriptor */
 #define XDMA_DESC_BLEN_BITS	28
@@ -211,7 +209,7 @@
 #define xdma_debug_assert_msg(cond, msg, ret_val) \
 	do{ \
 		if (!(cond)){\
-			pr_err("Debug assertion %s failed. %s", _stringify(cond), msg); \
+			pr_err("Debug assertion %s failed. %s", #cond, msg); \
 			return (ret_val);\
 			}\
 	}while(0)
@@ -574,8 +572,8 @@ struct xdma_dev {
 	int engines_num;	/* Total engine count */
 	u32 mask_irq_h2c;
 	u32 mask_irq_c2h;
-	struct xdma_engine engine_h2c[XDMA_CHANNEL_NUM_MAX];
-	struct xdma_engine engine_c2h[XDMA_CHANNEL_NUM_MAX];
+	struct xdma_engine *engine_h2c;
+	struct xdma_engine *engine_c2h;
 
 	/* SD_Accel specific */
 	enum dev_capabilities capabilities;
