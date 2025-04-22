@@ -1675,8 +1675,14 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	rv = engine_init_regs(engine);
 	if (rv)
 		return rv;
-	
+	/*init completion was renamed twice */
+	#if LINUX_VERSION_CHECK(5,11,0)
+	init_completion(&(engine->engine_compl));
+	#elif LINUX_VERSION_CHECK(4,14,0)
 	__init_completion(&(engine->engine_compl));
+	#else
+	init_completion(&(engine->engine_compl));
+	#endif
 	pr_info("XDMA engine %s can use up to %u descriptors with length of block of adjacent descriptors up to %u", 
 		engine->name,engine->desc_max, engine->adj_block_len);
 
