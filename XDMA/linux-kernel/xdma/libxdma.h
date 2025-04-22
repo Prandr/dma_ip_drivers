@@ -425,13 +425,14 @@ struct xdma_result {
 } __packed;
 
 /*#define DMA_RECORD_TYPE(type) */
-/*generic DMA record for flexible bookkeeping*/
-#define DMA_RECORD(enclosed_type, var_name)\
+/*generic DMA record for flexible bookkeeping
+inspired by C++ templates*/
+#define generic_dma_record(enclosed_type)\
 struct  {\
-	volatile enclosed_type *virtual_addr;\
+	enclosed_type *virtual_addr;\
 	dma_addr_t dma_addr;\
 	size_t length;\
-} var_name
+} 
 /*holds transfer parameters*/
 struct xdma_transfer_params {
 	char __user *buf;
@@ -448,7 +449,7 @@ struct xdma_transfer {
 	struct sg_table *sgt;
 	int count_after_sg_create;
 	int count_after_mapping;
-	DMA_RECORD(struct xdma_desc, *desc_adj_blocks);/*bookkeeping for descriptors grouped in adjacent blocks*/
+	generic_dma_record(struct xdma_desc) *desc_adj_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
 	unsigned int init_flags;/*track initialisation stages of a transfer*/
 };
