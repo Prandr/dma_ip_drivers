@@ -1600,9 +1600,12 @@ err_out:
 	engine_free_resource(engine);
 	return -ENOMEM;*/
 }
-
+/* register offset for the engine */
 static unsigned int get_engine_offset(enum dma_data_direction dir, int channel)
 {
+	/* read channels at 0x0000, write channels at 0x1000,
+	 * channels at 0x100 interval
+	 */
 	unsigned int offset =channel * CHANNEL_SPACING;
 	if (dir == DMA_FROM_DEVICE)
 		offset+=H2C_CHANNEL_OFFSET;
@@ -1645,7 +1648,9 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
 		engine->streaming ? "ST" : "MM");
 
-	
+	/*calculate maximum usable register for engine, so that hardware descriptor FIFO would not overflow
+	First clculate size of the FIFO, then total descriptors that fit into it, and divide by number of channels,
+	separately for each diraction. */
 	const_cast(unsigned int, engine->desc_max) = (XDMA_DESC_FIFO_DEPTH * xdev->datapath_width) /sizeof(struct xdma_desc)
 	    				/(dir==DMA_TO_DEVICE? xdev->h2c_channel_num: xdev->c2h_channel_num);
 	
@@ -1654,19 +1659,19 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
 		 (unsigned int) (int)engine->irq_bitmask);
 
-	/* initialize the deferred work for transfer completion */
 
 
 	if (dir == DMA_TO_DEVICE)
 		xdev->mask_irq_h2c |= engine->irq_bitmask;
 	else
 		xdev->mask_irq_c2h |= engine->irq_bitmask;
-	xdev->engines_num++;
+	
 
 	rv = engine_alloc_resource(engine);
 	if (rv)
 		return rv;
-
+		
+	xdev->engines_num++;
 	rv = engine_init_regs(engine);
 	if (rv)
 		return rv;
@@ -2316,6 +2321,7 @@ static void remove_engines(struct xdma_dev *xdev)
 	kvfree(xdev->engine_c2h);
 }
 
+/*read max read request size register from the device and set parameter accordingly*/
 static inline void set_max_read_request_size(struct xdma_dev *xdev)
 {
 	unsigned int max_read_request_size=128;
@@ -2349,10 +2355,10 @@ static inline void set_max_read_request_size(struct xdma_dev *xdev)
 	
 	const_cast(unsigned int, xdev->max_read_request_size)=max_read_request_size;
 }
-
+/*read datapath width register from the device and set parameter accordingly*/
 static inline void set_datapath_width(struct xdma_dev *xdev)
 {
-	unsigned int datapath_width=8;
+	unsigned int datapath_width=64/8;
 	struct config_regs *cfg_regs= (struct config_regs *)(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_CONFIG);
 	u32 datapath_reg=ioread32( &(cfg_regs->datapath_width));
 	switch(datapath_reg)
@@ -2389,10 +2395,6 @@ static bool probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
 	struct xdma_engine *engine;
 	int rv;
 
-	/* register offset for the engine */
-	/* read channels at 0x0000, write channels at 0x1000,
-	 * channels at 0x100 interval
-	 */
 	if (dir == DMA_TO_DEVICE) {
 		engine_id_expected = XDMA_ID_H2C;
 		engine = &xdev->engine_h2c[channel];
@@ -2431,7 +2433,7 @@ static int probe_engines(struct xdma_dev *xdev)
 	this allows to correctly calculate max descriptors as well as dynamic allocation*/
 	for(xdev->h2c_channel_num=0; (xdev->h2c_channel_num<XDMA_CHANNEL_NUM_MAX)&&probe_for_engine(xdev, DMA_TO_DEVICE, xdev->h2c_channel_num); ++xdev->h2c_channel_num);
 	
-	xdev->c2h_channel_num = 0;/* reset to 0 to allow correct destruction in cas of error*/ 
+	xdev->c2h_channel_num = 0;/* set to 0  already hereto allow correct destruction in case of error*/ 
 	/* allocate and initialize engines */
 	if(xdev->h2c_channel_num>0)
 	{

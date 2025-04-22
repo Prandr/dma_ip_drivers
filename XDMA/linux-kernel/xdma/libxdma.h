@@ -448,9 +448,9 @@ struct xdma_transfer {
 	struct sg_table *sgt;
 	int count_after_sg_create;
 	int count_after_mapping;
-	DMA_RECORD(struct xdma_desc, *desc_adj_blocks);//bookkeeping for descriptors grouped in adjacent blocks
+	DMA_RECORD(struct xdma_desc, *desc_adj_blocks);/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
-	unsigned int init_flags;
+	unsigned int init_flags;/*track initialisation stages of a transfer*/
 };
 
 #define XENGINE_OPEN_BIT 0L
@@ -461,7 +461,7 @@ struct xdma_engine {
 	struct xdma_dev *xdev;	/* parent device */
 	char name[16];		/* name of this engine */
 	int version;		/* version of this engine */
-	volatile unsigned long flags;
+	volatile unsigned long flags;/*keeps device state of the engine*/
 
 	/* HW register address offsets */
 	struct engine_regs *regs;		/* Control reg BAR offset */
@@ -487,7 +487,7 @@ struct xdma_engine {
 	const unsigned desc_max;		/* max # descriptors per xfer */
 	struct xdma_transfer_params transfer_params;
 	struct xdma_transfer transfer;
-	struct dma_pool *desc_pool;
+	struct dma_pool *desc_pool;/*DMA pool for descriptors*/
 	struct completion engine_compl;
 	u32 status;	
 	/* only used for MSIX mode to store per-engine interrupt mask value */
