@@ -436,15 +436,15 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	int ret_val=0;
 	struct xdma_cdev *xcdev;
 	struct xdma_engine *engine;
-	//don't allow to open the engine more than once
-	if(test_and_set_bit(XENGINE_OPEN_BIT, &(engine->flags)))
-		return -EBUSY;
-		
+	
 	char_open(inode, file_ptr);
 
 	xcdev = (struct xdma_cdev *)file_ptr->private_data;
 	engine = xcdev->engine;
 	
+	//don't allow to open the engine more than once
+	if(test_and_set_bit(XENGINE_OPEN_BIT, &(engine->flags)))
+		return -EBUSY;
 	/*Should never ever happen otherwise something went horribly wrong*/
 	xdma_debug_assert_msg((engine->dir==DMA_TO_DEVICE)||(engine->dir==DMA_FROM_DEVICE), 
 		"Unexpected direction of XDMA engine", -ENODEV);
