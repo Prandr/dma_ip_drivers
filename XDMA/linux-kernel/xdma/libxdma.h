@@ -230,15 +230,15 @@
 #endif
 
 
-
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(a,b) (0x7fffffff) //workaround for condensed check
+/*define for non RHEL as a workaround to avoid preprocor error*/
+#ifndef RHEL_RELEASE_VERSION/*set to int max to make comparision false on non RHEL*/
+#define RHEL_RELEASE_VERSION(a,b) (0x7fffffff) 
 #endif
 #define LINUX_VERSION_CHECK(major, minor, rev) (LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev))
-/*condense version checks into single check*/
+/*checks for RHEL and general Linux version in single macro */
 #define KERNEL_VERSION_CHECK(rhel_major, rhel_minor, linux_major, linux_minor, linux_rev) \
-    ((!defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CHECK(linux_major, linux_minor, linux_rev)))|| \
-    ((defined(RHEL_RELEASE_CODE) && (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(rhel_major, rhel_minor)))) 
+    (((defined(RHEL_RELEASE_CODE) && (RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(rhel_major, rhel_minor)))|| \
+    (!defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CHECK(linux_major, linux_minor, linux_rev)))) 
     
 
 #if KERNEL_VERSION_CHECK(8, 0, 5, 0, 0)
