@@ -2426,50 +2426,55 @@ static int probe_engines(struct xdma_dev *xdev)
 	int rv = 0;
 
 	xdma_debug_assert_ptr(xdev);
-
+	
 	/*probe engines first to find number of engines. 
 	this allows to correctly calculate max descriptors as well as dynamic allocation*/
-	while(probe_for_engine(xdev, DMA_TO_DEVICE, i))  ++i;
+	for(xdev->h2c_channel_num=0; (xdev->h2c_channel_num<XDMA_CHANNEL_NUM_MAX)&&probe_for_engine(xdev, DMA_TO_DEVICE, xdev->h2c_channel_num); ++xdev->h2c_channel_num);
 	
-	xdev->h2c_channel_num = i;
-	xdev->engine_h2c=kvcalloc(xdev->h2c_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-	if(xdev->engine_h2c==NULL)
+	xdev->c2h_channel_num = 0;/* reset to 0 to allow correct destruction in cas of error*/ 
+	/* allocate and initialize engines */
+	if(xdev->h2c_channel_num>0)
 	{
-		pr_err("Failed to allocate memory for %s engines", "H2C");
-		return -ENOMEM;
-	}
-/* allocate and initialize engine */
-	for (i=0;i<xdev->h2c_channel_num;i++)
-	{
-		rv = engine_init(xdev, DMA_TO_DEVICE, i);
-		if (rv != 0) 
+		
+		xdev->engine_h2c=kcalloc(xdev->h2c_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+		if(xdev->engine_h2c==NULL)
 		{
-			pr_err("failed to create AXI %s %d engine.\n", "H2C", i);
-			return rv;
+			pr_err("Failed to allocate memory for %s engines", "H2C");
+			return -ENOMEM;
+		}
+		
+		for (i=0;i<xdev->h2c_channel_num;i++)
+		{
+			rv = engine_init(xdev, DMA_TO_DEVICE, i);
+			if (rv != 0) 
+			{
+				pr_err("failed to create AXI %s %d engine.\n", "H2C", i);
+				return rv;
+			}
 		}
 	}
 	
 	
+	for (xdev->c2h_channel_num = 0;(xdev->c2h_channel_num<XDMA_CHANNEL_NUM_MAX)&&probe_for_engine(xdev, DMA_FROM_DEVICE, xdev->c2h_channel_num); ++xdev->c2h_channel_num);
 	
-	i=0;
-	while(probe_for_engine(xdev, DMA_FROM_DEVICE, i)) ++i;
-	
-	xdev->c2h_channel_num = i;
-	xdev->engine_c2h=kvcalloc(xdev->c2h_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-	if(xdev->engine_c2h==NULL)
+	if (xdev->c2h_channel_num>0)
 	{
-		pr_err("Failed to allocate memory for %s engines", "C2H");
-		return -ENOMEM;
-	}
-		
-	for (i=0;i<xdev->c2h_channel_num;i++)
-	{
-		rv = engine_init( xdev, DMA_FROM_DEVICE, i);
-		if (rv != 0) 
+		xdev->engine_c2h=kcalloc(xdev->c2h_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+		if(xdev->engine_c2h==NULL)
 		{
-			pr_err("failed to create AXI %s %d engine.\n",
-				"C2H", i);
-			return rv;
+			pr_err("Failed to allocate memory for %s engines", "C2H");
+			return -ENOMEM;
+		}
+			
+		for (i=0;i<xdev->c2h_channel_num;i++)
+		{
+			rv = engine_init( xdev, DMA_FROM_DEVICE, i);
+			if (rv != 0) 
+			{
+				pr_err("failed to create AXI %s %d engine.\n",
+					"C2H", i);
+				return rv;
+			}
 		}
 	}
 	return 0;
