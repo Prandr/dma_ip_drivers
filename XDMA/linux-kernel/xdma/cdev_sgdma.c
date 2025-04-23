@@ -448,8 +448,7 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	/*Should never ever happen otherwise something went horribly wrong*/
 	xdma_debug_assert_msg((engine->dir==DMA_TO_DEVICE)||(engine->dir==DMA_FROM_DEVICE), 
 		"Unexpected direction of XDMA engine", -ENODEV);
-	/* make sure that file access mode matches direction of engine and disallow 
-	unsupported operations  */
+	/* make sure that file access mode matches direction of engine and otherwise deny access  */
 	if(engine->dir==DMA_TO_DEVICE)
 	{
 		if((file_ptr->f_flags & O_ACCMODE)!=O_WRONLY)
@@ -478,7 +477,6 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 			
 	}else if ((ret_val=generic_file_open(inode, file_ptr ))<0)
 	{
-		pr_err("Failed to open XDMA engine %s", engine->name);
 		goto not_open;	
 	}
 	print_fmode(file_ptr->f_path.dentry->d_iname, file_ptr->f_mode);
@@ -503,8 +501,6 @@ static int char_sgdma_close(struct inode *inode, struct file *file)
 	engine = xcdev->engine;
 	
 	clear_bit(XENGINE_OPEN_BIT, &(engine->flags));
-	/*if (engine->streaming && engine->dir == DMA_FROM_DEVICE)
-		engine->device_open = 0;*/
 
 	return 0;
 }
