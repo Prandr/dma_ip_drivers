@@ -453,14 +453,20 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	if(engine->dir==DMA_TO_DEVICE)
 	{
 		if((file_ptr->f_flags & O_ACCMODE)!=O_WRONLY)
-			return -EACCES;
+		{
+			ret_val= -EACCES;
+			goto not_open;
+		}
 		file_ptr->f_mode&= ~FMODE_READ;
 		
 	}
 	else
 	{
 		if((file_ptr->f_flags & O_ACCMODE)!=O_RDONLY)
-			return -EACCES;
+		{
+			ret_val= -EACCES;
+			goto not_open;
+		}
 		file_ptr->f_mode&= ~FMODE_WRITE;
 	}
 	
@@ -473,9 +479,13 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	}else if ((ret_val=generic_file_open(inode, file_ptr ))<0)
 	{
 		pr_err("Failed to open XDMA engine %s", engine->name);
-		return ret_val;	
+		goto not_open;	
 	}
 	print_fmode(file_ptr->f_path.dentry->d_iname, file_ptr->f_mode);
+	
+	not_open:
+	if (ret_val<0)/*clear busy bit again, if file can't be allowed to open*/
+		clear_bit(XENGINE_OPEN_BIT, &(engine->flags));
 	
 	return ret_val;
 }
