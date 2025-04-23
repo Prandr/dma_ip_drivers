@@ -179,6 +179,76 @@ int position_check(resource_size_t max_pos, loff_t pos, loff_t align)
 	return 0;
 }
 
+
+#ifdef __LIBXDMA_DEBUG__
+void print_file_flags(const unsigned char *file_name, unsigned int f_flags)
+{
+	pr_info("File %s was opened with flags: ", file_name);
+	if((f_flags&O_ACCMODE)==O_RDONLY)
+		pr_cont("O_RDONLY, ");
+	if((f_flags&O_ACCMODE)==O_WRONLY)
+		pr_cont("O_WRONLY, ");
+	if((f_flags&O_ACCMODE)==O_RDWR)
+		pr_cont("O_RDWR, ");
+	if(f_flags&O_CREAT)
+		pr_cont("O_CREAT, ");
+	if(f_flags&O_EXCL)
+		pr_cont("O_EXCL, ");
+	if(f_flags&O_NOCTTY)
+		pr_cont("O_NOCTTY, ");
+	if(f_flags&O_TRUNC)
+		pr_cont("O_TRUNC, ");
+	if(f_flags&O_APPEND)
+		pr_cont("O_APPEND, ");
+	if(f_flags&O_NONBLOCK)
+		pr_cont("O_NONBLOCK, ");
+	if(f_flags&O_DSYNC)
+		pr_cont("O_DSYNC, ");
+	if(f_flags&FASYNC)
+		pr_cont("FASYNC, ");
+	if(f_flags&O_DIRECT)
+		pr_cont("O_DIRECT, ");
+	if(f_flags&O_LARGEFILE)
+		pr_cont("O_LARGEFILE, ");
+	if(f_flags&O_DIRECTORY)
+		pr_cont("O_DIRECTORY, ");
+	if(f_flags&O_NOFOLLOW)
+		pr_cont("O_NOFOLLOW, ");
+	if(f_flags&O_NOATIME)
+		pr_cont("O_NOATIME, ");
+	if(f_flags&O_CLOEXEC)
+		pr_cont("O_CLOEXEC, ");
+	
+	pr_cont("\n");
+}
+
+void print_fmode(const unsigned char *file_name, unsigned int f_mode)
+{
+	static const char *fmodes[]={"FMODE_READ", "FMODE_WRITE", "FMODE_LSEEK", 
+	"FMODE_PREAD", "FMODE_PWRITE", "FMODE_EXEC", "FMODE_WRITE_RESTRICTED", 
+	"FMODE_CAN_ATOMIC_WRITE", "", "FMODE_32BITHASH", "FMODE_64BITHASH",
+	"FMODE_NOCMTIME", "FMODE_RANDOM", "FMODE_UNSIGNED_OFFSET", "FMODE_PATH",
+	"FMODE_ATOMIC_POS", "FMODE_WRITER", "FMODE_CAN_READ", "FMODE_CAN_WRITE",
+	"FMODE_OPENED", "FMODE_CREATED", "FMODE_STREAM", "FMODE_CAN_ODIRECT", 
+	"FMODE_NOREUSE", "", "FMODE_BACKING", "FMODE_NONOTIFY", "FMODE_NOWAIT",
+	"FMODE_NEED_UNMOUNT", "FMODE_NOACCOUNT"};
+	pr_info("Mode of file %s was set to: ", file_name);
+	unsigned int i=0;
+	/* if f_mode==0, thera no more set flags)*/
+	for(i; f_mode!=0; ++i, f_mode>>=1)
+	{
+		if(f_mode & 0x1)
+			pr_cont("%s, ", fmodes[i]);	
+	}
+	pr_cont("\n");
+	
+}
+#else
+inline void print_file_flags(const unsigned char *file_name, unsigned int f_flags)
+{}
+inline void print_fmode(const unsigned char *file_name, unsigned int f_flags)
+{}
+#endif
 int char_open(struct inode *inode, struct file *file)
 {
 	struct xdma_cdev *xcdev;
@@ -192,7 +262,7 @@ int char_open(struct inode *inode, struct file *file)
 	}
 	/* create a reference to our char device in the opened file */
 	file->private_data = xcdev;
-
+	print_file_flags(file->f_path.dentry->d_iname, file->f_flags);
 	return 0;
 }
 

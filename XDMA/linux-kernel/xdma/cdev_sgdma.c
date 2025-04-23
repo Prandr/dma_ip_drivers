@@ -475,7 +475,7 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 		pr_err("Failed to open XDMA engine %s", engine->name);
 		return ret_val;	
 	}
-	
+	print_fmode(file_ptr->f_path.dentry->d_iname, file_ptr->f_mode);
 	
 	return ret_val;
 }

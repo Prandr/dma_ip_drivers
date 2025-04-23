@@ -51,4 +51,6 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev);
 
 int bridge_mmap(struct file *file, struct vm_area_struct *vma);
 
+void print_fmode(const unsigned char *file_name, unsigned int f_mode);
+
 #endif /* __XDMA_CHRDEV_H__ */
