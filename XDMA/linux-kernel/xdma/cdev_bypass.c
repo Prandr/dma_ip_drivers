@@ -62,12 +62,12 @@ static int copy_desc_data(struct xdma_transfer *transfer, char __user *buf,
 	return rc;
 }
 
-static ssize_t char_bypass_read(struct file *file, char __user *buf,
+static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *pos)
 {
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_transfer *transfer;
 	struct list_head *idx;
 	size_t buf_offset = 0;
@@ -119,12 +119,12 @@ static ssize_t char_bypass_read(struct file *file, char __user *buf,
 		return buf_offset;
 }
 
-static ssize_t char_bypass_write(struct file *file, const char __user *buf,
+static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *pos)
 {
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 
 	u32 desc_data;
 	void __iomem *bypass_addr;

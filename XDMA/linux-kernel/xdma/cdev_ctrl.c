@@ -58,10 +58,10 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	return 4;
 }
 
-static ssize_t char_ctrl_write(struct file *file, const char __user *buf,
+static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 			size_t count, loff_t *pos)
 {
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	void __iomem *reg;
 	u32 w;
@@ -178,10 +178,10 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 
 /* maps the PCIe BAR into user space for memory-like access using mmap() */
-int bridge_mmap(struct file *file, struct vm_area_struct *vma)
+int bridge_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct xdma_dev *xdev;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	unsigned long off;
 	resource_size_t phys;
 	unsigned long vsize;

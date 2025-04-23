@@ -117,12 +117,12 @@ static int check_transfer_align(struct xdma_engine *engine,
 	return 0;
 }
 
-static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
+static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *pos)
 {
 	int rv;
 	ssize_t res = 0;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine=xcdev->engine;
 	
@@ -138,16 +138,16 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 }
 
 
-static ssize_t char_sgdma_write(struct file *file, const char __user *buf,
+static ssize_t char_sgdma_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, buf, count, pos);
+	return char_sgdma_read_write(filp, buf, count, pos);
 }
 
-static ssize_t char_sgdma_read(struct file *file, char __user *buf,
+static ssize_t char_sgdma_read(struct file *filp, char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, buf, count, pos);
+	return char_sgdma_read_write(filp, buf, count, pos);
 }
 
 
@@ -381,10 +381,10 @@ static int ioctl_do_aperture_dma(struct xdma_engine *engine, unsigned long arg,
 	return io.error;
 }
 	
-static long char_sgdma_ioctl(struct file *file, unsigned int cmd,
+static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
 
@@ -431,15 +431,15 @@ static long char_sgdma_ioctl(struct file *file, unsigned int cmd,
 	return rv;
 }
 
-static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
+static int char_sgdma_open(struct inode *inode, struct file *filp)
 {
 	int ret_val=0;
 	struct xdma_cdev *xcdev;
 	struct xdma_engine *engine;
 	
-	char_open(inode, file_ptr);
+	char_open(inode, filp);
 
-	xcdev = (struct xdma_cdev *)file_ptr->private_data;
+	xcdev = (struct xdma_cdev *)filp->private_data;
 	engine = xcdev->engine;
 	
 	//don't allow to open the engine more than once
@@ -451,35 +451,35 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	/* make sure that file access mode matches direction of engine and otherwise deny access  */
 	if(engine->dir==DMA_TO_DEVICE)
 	{
-		if((file_ptr->f_flags & O_ACCMODE)!=O_WRONLY)
+		if((filp->f_flags & O_ACCMODE)!=O_WRONLY)
 		{
 			ret_val= -EACCES;
 			goto not_open;
 		}
-		file_ptr->f_mode&= ~FMODE_READ;
+		filp->f_mode&= ~FMODE_READ;
 		
 	}
 	else
 	{
-		if((file_ptr->f_flags & O_ACCMODE)!=O_RDONLY)
+		if((filp->f_flags & O_ACCMODE)!=O_RDONLY)
 		{
 			ret_val= -EACCES;
 			goto not_open;
 		}
-		file_ptr->f_mode&= ~FMODE_WRITE;
+		filp->f_mode&= ~FMODE_WRITE;
 	}
 	
 	if (engine->streaming)
 	{	/*mark dev file as streaming device*/
-		stream_open(inode, file_ptr);
-		engine->eop_flush=(file_ptr->f_flags& O_TRUNC)? 1: 0;
+		stream_open(inode, filp);
+		engine->eop_flush=(filp->f_flags& O_TRUNC)? 1: 0;
 		
 			
-	}else if ((ret_val=generic_file_open(inode, file_ptr ))<0)
+	}else if ((ret_val=generic_file_open(inode, filp ))<0)
 	{
 		goto not_open;	
 	}
-	print_fmode(file_ptr->f_path.dentry->d_iname, file_ptr->f_mode);
+	print_fmode(filp->f_path.dentry->d_iname, filp->f_mode);
 	
 	not_open:
 	if (ret_val<0)/*clear busy bit again, if file can't be allowed to open*/
@@ -488,9 +488,9 @@ static int char_sgdma_open(struct inode *inode, struct file *file_ptr)
 	return ret_val;
 }
 
-static int char_sgdma_close(struct inode *inode, struct file *file)
+static int char_sgdma_close(struct inode *inode, struct file *filp)
 {
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_engine *engine;
 	int rv;
 

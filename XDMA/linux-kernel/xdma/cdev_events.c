@@ -24,12 +24,12 @@
 /*
  * character device file operations for events
  */
-static ssize_t char_events_read(struct file *file, char __user *buf,
+static ssize_t char_events_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *pos)
 {
 	int rv;
 	struct xdma_user_irq *user_irq;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	u32 events_user;
 	unsigned long flags;
 
@@ -74,10 +74,10 @@ static ssize_t char_events_read(struct file *file, char __user *buf,
 	return 4;
 }
 
-static unsigned int char_events_poll(struct file *file, poll_table *wait)
+static unsigned int char_events_poll(struct file *filp, poll_table *wait)
 {
 	struct xdma_user_irq *user_irq;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	unsigned long flags;
 	unsigned int mask = 0;
 	int rv;
@@ -91,7 +91,7 @@ static unsigned int char_events_poll(struct file *file, poll_table *wait)
 		return -EINVAL;
 	}
 
-	poll_wait(file, &user_irq->events_wq,  wait);
+	poll_wait(filp, &user_irq->events_wq,  wait);
 
 	spin_lock_irqsave(&user_irq->events_lock, flags);
 	if (user_irq->events_irq)

@@ -34,9 +34,9 @@
 void xdma_cdev_cleanup(void);
 int xdma_cdev_init(void);
 
-int char_open(struct inode *inode, struct file *file);
-loff_t char_llseek(struct file *file, loff_t off, int whence);
-int char_close(struct inode *inode, struct file *file);
+int char_open(struct inode *inode, struct file *filp);
+loff_t char_llseek(struct file *filp, loff_t off, int whence);
+int char_close(struct inode *inode, struct file *filp);
 int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
 int position_check(resource_size_t max_pos, loff_t pos, loff_t align);
 void cdev_ctrl_init(struct xdma_cdev *xcdev);
@@ -49,7 +49,7 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev);
 int xpdev_create_interfaces(struct xdma_pci_dev *xpdev);
 
-int bridge_mmap(struct file *file, struct vm_area_struct *vma);
+int bridge_mmap(struct file *filp, struct vm_area_struct *vma);
 
 void print_fmode(const unsigned char *file_name, unsigned int f_mode);
 

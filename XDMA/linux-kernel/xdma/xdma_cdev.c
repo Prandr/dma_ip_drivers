@@ -249,7 +249,7 @@ inline void print_file_flags(const unsigned char *file_name, unsigned int f_flag
 inline void print_fmode(const unsigned char *file_name, unsigned int f_flags)
 {}
 #endif
-int char_open(struct inode *inode, struct file *file)
+int char_open(struct inode *inode, struct file *filp)
 {
 	struct xdma_cdev *xcdev;
 
@@ -261,14 +261,14 @@ int char_open(struct inode *inode, struct file *file)
 		return -EINVAL;
 	}
 	/* create a reference to our char device in the opened file */
-	file->private_data = xcdev;
-	print_file_flags(file->f_path.dentry->d_iname, file->f_flags);
+	filp->private_data = xcdev;
+	print_file_flags(filp->f_path.dentry->d_iname, filp->f_flags);
 	return 0;
 }
 
-loff_t char_llseek(struct file *file, loff_t off, int whence)
+loff_t char_llseek(struct file *filp, loff_t off, int whence)
 {
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)(file->private_data);
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)(filp->private_data);
 	struct xdma_dev *xdev = xcdev->xdev;
 	loff_t newpos = 0;
 	//XDMA Address space is unlimited, while other interfaces are limited by their BAR sizes
@@ -281,8 +281,8 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 		break;
 	case 1: /* SEEK_CUR */
 		if (off==0)//common method to retrieve current offset
-			return file->f_pos;
-		newpos = file->f_pos + off;
+			return filp->f_pos;
+		newpos = filp->f_pos + off;
 		break;
 	case 2: /* SEEK_END*/
 		newpos = maxpos  + off;
@@ -292,12 +292,12 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 	}
 	if (newpos < 0 || (resource_size_t) newpos >=maxpos)
 		return -EINVAL;
-	file->f_pos = newpos;
+	filp->f_pos = newpos;
 	dbg_fops("%s: pos=%lld\n", __func__, (signed long long)newpos);
 
 #if 0
 	pr_err("0x%p, off %lld, whence %d -> pos %lld.\n",
-		file, (signed long long)off, whence, (signed long long)off);
+		filp, (signed long long)off, whence, (signed long long)off);
 #endif
 
 	return newpos;
@@ -306,10 +306,10 @@ loff_t char_llseek(struct file *file, loff_t off, int whence)
 /*
  * Called when the device goes from used to unused.
  */
-int char_close(struct inode *inode, struct file *file)
+int char_close(struct inode *inode, struct file *filp)
 {
 	struct xdma_dev *xdev;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
+	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 
 	if (!xcdev) {
 		pr_err("char device with inode 0x%lx xcdev NULL\n",
