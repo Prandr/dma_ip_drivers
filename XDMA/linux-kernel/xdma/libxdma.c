@@ -30,6 +30,7 @@
 #include "libxdma.h"
 #include "libxdma_api.h"
 #include "cdev_sgdma.h"
+#include "xdma_cdev.h"
 
 
 
@@ -1708,7 +1709,63 @@ static void sgt_dump(struct sg_table *sgt)
 }
 
 
+static const char* direction_to_string(enum dma_data_direction dir)
+{
+
+	switch(dir)
+	{
+	case DMA_BIDIRECTIONAL:
+	 	return "DMA_BIDIRECTIONAL";
+	case DMA_TO_DEVICE:
+	 	return "DMA_TO_DEVICE";
+	case DMA_FROM_DEVICE:
+	 	return "DMA_FROM_DEVICE";
+	case DMA_NONE:
+	 	return "DMA_NONE";
+	default:
+		return "*ERROR* invalid DMA direction";
+	}
+	 	 
+}
 #endif
+/*check transfer parameters for validity */
+static int xdma_validate_transfer(const struct xdma_engine *engine)
+{	
+	int rv=0;
+	const struct xdma_transfer_params *transfer_params=&(engine->transfer_params);
+	const u64 addr_align_mask= ((u64) engine->addr_align)-1;
+	const u64 granularity_mask= ((u64) engine->len_granularity)-1;
+	dbg_fops("Transfer request on engine %s: buf 0x%px, length %zu, AXI address %lld, direction %s\n",
+		engine->name, transfer_params->buf, transfer_params->length, transfer_params->ep_addr, 
+		direction_to_string(transfer_params->dir));
+	if(unlikely(transfer_params->buf==NULL))
+		return -EINVAL;
+	if(unlikely(transfer_params->length==0))
+		return -EINVAL;
+	rv=position_check(MAX_RESOURCE_SIZE, transfer_params->ep_addr, engine->addr_align);
+	if(rv<0)
+		return rv;
+	if (engine->non_incr_addr)
+	{
+		if((((uintptr_t) transfer_params->buf) &addr_align_mask)!=0|| (transfer_params->ep_addr&addr_align_mask)!=0)
+		{
+			
+			pr_err("The address of transfer buffer 0x%px or AXI address %lld are not multiple of %u\n", transfer_params->buf, transfer_params->ep_addr, engine->addr_align);
+			return -EINVAL;
+		}
+		if((transfer_params->length & granularity_mask)!=0)
+		{
+			pr_err("Transfer length %zu is not multiple of %u\n", 
+			transfer_params->length, engine->len_granularity);
+			return -EINVAL;
+		}
+		
+	}
+	/* else is not neccessary since there supposed to be no limitations
+	according to PG195*/
+		
+	return rv;	
+}
 
 
 ssize_t xdma_xfer_aperture(struct xdma_engine *engine, bool write, u64 ep_addr,
@@ -2022,11 +2079,15 @@ unmap_sgl:
 ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 {
 
-	int rv = 0, tfer_idx = 0, i;
-	ssize_t done = 0;
+	ssize_t rv=0;
+	rv=xdma_validate_transfer(engine);
+	if(rv<0)
+		goto clean_up; 
 	
-	/* as long as some data is processed, return the count */
-	return done ? done : rv;
+	clean_up:
+	
+	
+	return rv;
 }
 
 

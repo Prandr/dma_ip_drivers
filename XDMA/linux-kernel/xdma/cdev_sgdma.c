@@ -42,8 +42,6 @@ unsigned int c2h_timeout_ms = 10000;
 module_param(c2h_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(c2h_timeout_ms, "C2H sgdma timeout in milliseconds, default is 10 seconds.");
 
-extern struct kmem_cache *cdev_cache;
-static void char_sgdma_unmap_user_buf(struct xdma_io_cb *cb, bool write);
 
 
 
@@ -57,84 +55,38 @@ static void char_sgdma_unmap_user_buf(struct xdma_io_cb *cb, bool write);
  * @buf userspace buffer
  * @count number of bytes in the userspace buffer
  * @pos byte-address in device
- * @dir_to_device If !0, a write to the device is performed
+ *  
  *
- * Iterate over the userspace buffer, taking at most 255 * PAGE_SIZE bytes for
- * each DMA transfer.
- *
- * For each transfer, get the user pages, build a sglist, map, build a
+ * For each transfer, pin the user pages, build a sgtable, map, build a
  * descriptor table. submit the transfer. wait for the interrupt handler
  * to wake us on completion.
  */
 
-static int check_transfer_align(struct xdma_engine *engine,
-	const char __user *buf, size_t count, loff_t pos, int sync)
-{
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
 
-	/* AXI ST or AXI MM non-incremental addressing mode? */
-	if (engine->non_incr_addr) {
-		int buf_lsb = (int)((uintptr_t)buf) & (engine->addr_align - 1);
-		size_t len_lsb = count & ((size_t)engine->len_granularity - 1);
-		int pos_lsb = (int)pos & (engine->addr_align - 1);
-
-		dbg_tfr("AXI ST or MM non-incremental\n");
-		dbg_tfr("buf_lsb = %d, pos_lsb = %d, len_lsb = %ld\n", buf_lsb,
-			pos_lsb, len_lsb);
-
-		if (buf_lsb != 0) {
-			dbg_tfr("FAIL: non-aligned buffer address %p\n", buf);
-			return -EINVAL;
-		}
-
-		if ((pos_lsb != 0) && (sync)) {
-			dbg_tfr("FAIL: non-aligned AXI MM FPGA addr 0x%llx\n",
-				(unsigned long long)pos);
-			return -EINVAL;
-		}
-
-		if (len_lsb != 0) {
-			dbg_tfr("FAIL: len %d is not a multiple of %d\n",
-				(int)count,
-				(int)engine->len_granularity);
-			return -EINVAL;
-		}
-		/* AXI MM incremental addressing mode */
-	} else {
-		int buf_lsb = (int)((uintptr_t)buf) & (engine->addr_align - 1);
-		int pos_lsb = (int)pos & (engine->addr_align - 1);
-
-		if (buf_lsb != pos_lsb) {
-			dbg_tfr("FAIL: Misalignment error\n");
-			dbg_tfr("host addr %p, FPGA addr 0x%llx\n", buf, pos);
-			return -EINVAL;
-		}
-	}
-
-	return 0;
-}
 
 static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *pos)
 {
-	int rv;
-	ssize_t res = 0;
+	ssize_t rv = 0;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine=xcdev->engine;
-	
+	/*guard against attempts for simultaneous transfer*/
 	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
 		return -EBUSY;
-	
+	/*just fill transfer params. checks are performed later inside xdma_xfer_submit*/
+	engine->transfer_params.buf=buf;
+	engine->transfer_params.length=count;
+	if(!engine->streaming)
+		engine->transfer_params.ep_addr=*pos;
+	/*doesn't really matter in this case. setup is performed according engine direction*/
+	engine->transfer_params.dir=engine->dir;
 
-	res = xdma_xfer_submit(engine);
+	rv = xdma_xfer_submit(engine);
 	
 	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	
-	return res;
+	return rv;
 }
 
 
