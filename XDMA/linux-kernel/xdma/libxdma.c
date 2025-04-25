@@ -1811,6 +1811,36 @@ int xdma_prepare_transfer(struct xdma_engine *engine)
 		transfer->num_pages=rv;/*to be able correctly unpin pages*/
 		return -EFAULT;
 	}
+	/*the functions allocate small chunks of memory. If that fails, there is 
+	no point trying, hence __NO_RETRY*/
+	#if LINUX_VERSION_CHECK(5,15,0)
+	rv=sg_alloc_table_from_pages_segment(&(transfer->sgt), transfer->pages, 
+			transfer->num_pages, offset_in_page(transfer_params->buf),
+			transfer_params->length, XDMA_DESC_BLEN_MAX, GFP_KERNEL|__GFP_NORETRY);
+	#elif LINUX_VERSION_CHECK(5,10,0)
+	rv=PTR_ERR_OR_ZERO(__sg_alloc_table_from_pages(&(transfer->sgt), 
+			transfer->pages, transfer->num_pages, 
+			offset_in_page(transfer_params->buf), transfer_params->length,
+			XDMA_DESC_BLEN_MAX, NULL, 0, GFP_KERNEL|__GFP_NORETRY ));
+	#elif LINUX_VERSION_CHECK(4,15,0)
+	rv=__sg_alloc_table_from_pages(&(transfer->sgt), transfer->pages, 
+			transfer->num_pages, offset_in_page(transfer_params->buf),
+			transfer_params->length, XDMA_DESC_BLEN_MAX & PAGE_MASK,
+			GFP_KERNEL|__GFP_NORETRY);
+	#else
+	/*this version has increased chance to fail,
+	 because of absent limit for the length of scatterlist entries.
+	 to be on safe side, it advisable to limit transfer length to XDMA_DESC_BLEN_MAX*/
+	rv=sg_alloc_table_from_pages(&(transfer->sgt), transfer->pages, transfer->num_pages,
+				offset_in_page(transfer_params->buf), transfer_params->length,
+				GFP_KERNEL|__GFP_NORETRY);
+	#endif
+	if (unlikely(rv<0))
+	{
+		dbg_sg("Failed to allocate SG table for engine %s", engine->name);
+		return rv;
+	}
+	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_ALLOC;
 	
 	return rv;	
 }
@@ -1819,6 +1849,10 @@ void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
+	
+	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_ALLOC)
+		sg_free_table(&(transfer->sgt));
+	
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_PINNED)
 	#if LINUX_VERSION_CHECK(5,6,0)
 		unpin_user_pages(transfer->pages, transfer->num_pages);

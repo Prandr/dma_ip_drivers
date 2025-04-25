@@ -441,11 +441,12 @@ struct xdma_transfer_params {
 
 #define XFER_FLAG_PAGES_ALLOC (1UL<<0)
 #define XFER_FLAG_PAGES_PINNED (1UL<<1)
+#define XFER_FLAG_SGTABLE_ALLOC (1UL<<2)
 /* holds data necessary to perform a trasfer*/
 struct xdma_transfer {
 	struct page **pages;
 	unsigned int num_pages;
-	struct sg_table *sgt;
+	struct sg_table sgt;
 	generic_dma_record(struct xdma_desc) *desc_adj_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
 	unsigned int cleanup_flags;/*track initialisation stages of a transfer for cleanup*/
