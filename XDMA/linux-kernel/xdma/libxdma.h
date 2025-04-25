@@ -440,7 +440,7 @@ struct xdma_transfer_params {
 };
 
 #define XFER_FLAG_PAGES_ALLOC (1UL<<0)
-
+#define XFER_FLAG_PAGES_PINNED (1UL<<1)
 /* holds data necessary to perform a trasfer*/
 struct xdma_transfer {
 	struct page **pages;

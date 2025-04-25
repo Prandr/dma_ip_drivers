@@ -1766,7 +1766,8 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		
 	return rv;	
 }
-
+/*all transfer initalisation stages. Linux kernel API changes
+cause quite a mess*/ 
 int xdma_prepare_transfer(struct xdma_engine *engine)
 {
 	int rv=0;
@@ -1790,6 +1791,26 @@ int xdma_prepare_transfer(struct xdma_engine *engine)
 		is_vmalloc_addr(transfer->pages)? 'v' :'k');
 	//print pfns
 	transfer->cleanup_flags|=XFER_FLAG_PAGES_ALLOC;
+	#if LINUX_VERSION_CHECK(5,6,0)
+	/*pin_user_pages (not get_...) should be used in DMA application. see Linux docs*/
+	rv=pin_user_pages_fast((unsigned long)transfer_params->buf, transfer->num_pages,
+				FOLL_WRITE, transfer->pages);
+	#else
+	rv=get_user_pages_fast((unsigned long)transfer_params->buf, transfer->num_pages,
+				FOLL_WRITE, transfer->pages);
+	#endif
+	if(unlikely(rv<0))
+	{
+		dbg_sg("Unable to pin user pages on engine %s", engine->name);
+		return rv; 
+	}
+	transfer->cleanup_flags|=XFER_FLAG_PAGES_PINNED;
+	if(unlikely(rv<transfer->num_pages))
+	{
+		dbg_sg("Not all pages could be pinned on engine %s", engine->name);
+		transfer->num_pages=rv;/*to be able correctly unpin pages*/
+		return -EFAULT;
+	}
 	
 	return rv;	
 }
@@ -1798,6 +1819,17 @@ void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
+	if(transfer->cleanup_flags & XFER_FLAG_PAGES_PINNED)
+	#if LINUX_VERSION_CHECK(5,6,0)
+		unpin_user_pages(transfer->pages, transfer->num_pages);
+	#else
+	{
+		struct page **page_iter=transfer->pages;
+		struct page **pages_end=transfer->pages+transfer->num_pages;
+		for(page_iter; page_iter!=pages_end; ++pages_iter)
+			put_page(*page_iter);
+	}	
+	#endif
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_ALLOC)
 		kvfree(transfer->pages);
 	
