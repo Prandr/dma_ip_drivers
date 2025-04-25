@@ -1766,6 +1766,30 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		
 	return rv;	
 }
+
+#if !LINUX_VERSION_CHECK(5,8,0)
+/*steal the code from newer kernel versions. Kind of local backport.
+Both easier and safer than add to the mess below with fences*/
+static int dma_map_sgtable(struct device *dev, struct sg_table *sgt,
+		enum dma_data_direction dir, unsigned long attrs)
+{
+	int nents;
+
+	nents = dma_map_sg_attrs(dev, sgt->sgl, sgt->orig_nents, dir, attrs);
+	if (nents <= 0)
+		return -EINVAL;
+	sgt->nents = nents;
+	return 0;
+}
+
+static void dma_unmap_sgtable(struct device *dev, struct sg_table *sgt,
+		enum dma_data_direction dir, unsigned long attrs)
+{
+	dma_unmap_sg_attrs(dev, sgt->sgl, sgt->orig_nents, dir, attrs);
+}
+#endif
+
+
 /*all transfer initalisation stages. Linux kernel API changes
 cause quite a mess*/ 
 int xdma_prepare_transfer(struct xdma_engine *engine)
@@ -1801,13 +1825,13 @@ int xdma_prepare_transfer(struct xdma_engine *engine)
 	#endif
 	if(unlikely(rv<0))
 	{
-		dbg_sg("Unable to pin user pages on engine %s", engine->name);
+		dbg_sg("Unable to pin user pages on engine %s\n", engine->name);
 		return rv; 
 	}
 	transfer->cleanup_flags|=XFER_FLAG_PAGES_PINNED;
 	if(unlikely(rv<transfer->num_pages))
 	{
-		dbg_sg("Not all pages could be pinned on engine %s", engine->name);
+		dbg_sg("Not all pages could be pinned on engine %s\n", engine->name);
 		transfer->num_pages=rv;/*to be able correctly unpin pages*/
 		return -EFAULT;
 	}
@@ -1837,10 +1861,19 @@ int xdma_prepare_transfer(struct xdma_engine *engine)
 	#endif
 	if (unlikely(rv<0))
 	{
-		dbg_sg("Failed to allocate SG table for engine %s", engine->name);
+		dbg_sg("Failed to allocate SG table for engine %s\n", engine->name);
 		return rv;
 	}
 	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_ALLOC;
+	
+	rv=dma_map_sgtable(&(engine->xdev->pdev->dev), &(transfer->sgt), engine->dir, 0);
+	if (rv<0)
+	{
+		dbg_sg("Failed to map sg table for engine %s\n", engine->name);
+		return rv; 
+	}
+	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_MAPPED;
+	dbg_sg("Num pages %lu, sg entries after allocation %u, after mapping %u\n", transfer->num_pages, transfer->sgt.orig_nents, transfer->sgt.nents);
 	
 	return rv;	
 }
@@ -1849,6 +1882,8 @@ void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
+	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_MAPPED);
+		dma_unmap_sgtable(&(engine->xdev->pdev->dev), &(transfer->sgt), engine->dir, 0);
 	
 	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_ALLOC)
 		sg_free_table(&(transfer->sgt));
