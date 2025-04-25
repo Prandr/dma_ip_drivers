@@ -1792,13 +1792,11 @@ static void dma_unmap_sgtable(struct device *dev, struct sg_table *sgt,
 
 /*all transfer initalisation stages. Linux kernel API changes
 cause quite a mess*/ 
-int xdma_prepare_transfer(struct xdma_engine *engine)
+static int xdma_prepare_transfer(struct xdma_engine *engine)
 {
 	int rv=0;
 	const struct xdma_transfer_params *transfer_params=&(engine->transfer_params);
 	struct xdma_transfer *transfer=&(engine->transfer);
-	int count_after_sg_create;
-	int count_after_mapping;
 	transfer->num_pages=(((uintptr_t)transfer_params->buf + transfer_params->length + PAGE_SIZE - 1) -
 				 ((uintptr_t)transfer_params->buf & PAGE_MASK))>> PAGE_SHIFT;
 	/*Here is where kvmalloc is really neccessary, because the size of transfer and
@@ -1878,7 +1876,7 @@ int xdma_prepare_transfer(struct xdma_engine *engine)
 	return rv;	
 }
 
-void xdma_cleanup_transfer(struct xdma_engine *engine)
+static void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
@@ -2218,9 +2216,12 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 {
 
 	ssize_t rv=0;
-	if(xdma_validate_transfer(engine)<0)
-		goto cleanup; 
-	if(xdma_prepare_transfer(engine)<0)
+	rv=xdma_validate_transfer(engine);
+	if (rv<0)
+		return rv; 
+		
+	rv=xdma_prepare_transfer(engine);
+	if(rv<0)
 		goto cleanup;
 	
 	cleanup:
