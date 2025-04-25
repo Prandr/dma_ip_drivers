@@ -438,18 +438,17 @@ struct xdma_transfer_params {
 	loff_t ep_addr;
 	enum dma_data_direction dir;
 };
-/* Describes a (SG DMA) single transfer for the engine */
-#define XFER_FLAG_ST_C2H_EOP_RCVED	0x2	/* ST c2h only */ 
+
+#define XFER_FLAG_PAGES_ALLOC (1UL<<0)
+
 /* holds data necessary to perform a trasfer*/
 struct xdma_transfer {
 	struct page **pages;
 	unsigned int num_pages;
 	struct sg_table *sgt;
-	int count_after_sg_create;
-	int count_after_mapping;
 	generic_dma_record(struct xdma_desc) *desc_adj_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
-	unsigned int init_flags;/*track initialisation stages of a transfer*/
+	unsigned int cleanup_flags;/*track initialisation stages of a transfer for cleanup*/
 };
 
 #define XENGINE_OPEN_BIT 0L

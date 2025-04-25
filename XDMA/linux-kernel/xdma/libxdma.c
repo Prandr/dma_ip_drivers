@@ -1767,6 +1767,41 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	return rv;	
 }
 
+int xdma_prepare_transfer(struct xdma_engine *engine)
+{
+	int rv=0;
+	const struct xdma_transfer_params *transfer_params=&(engine->transfer_params);
+	struct xdma_transfer *transfer=&(engine->transfer);
+	int count_after_sg_create;
+	int count_after_mapping;
+	transfer->num_pages=(((uintptr_t)transfer_params->buf + transfer_params->length + PAGE_SIZE - 1) -
+				 ((uintptr_t)transfer_params->buf & PAGE_MASK))>> PAGE_SHIFT;
+	/*Here is where kvmalloc is really neccessary, because the size of transfer and
+	therefore number of pages can vary widely, from just a few to millions.
+	Save time by ommitting zeroing, since they are going to be overwritten 
+	in the next step anyway*/
+	transfer->pages=kvmalloc_array(transfer->num_pages, sizeof(struct page*), GFP_KERNEL);
+	if(unlikely(transfer->pages==NULL))
+	{
+		dbg_sg("Failed to allocate memory for pages on engine %s\n", engine->name);
+		return -ENOMEM;
+	}
+	dbg_sg("Pages for transfer on engine %s were allocated with %cmalloc\n", engine->name,
+		is_vmalloc_addr(transfer->pages)? 'v' :'k');
+	//print pfns
+	transfer->cleanup_flags|=XFER_FLAG_PAGES_ALLOC;
+	
+	return rv;	
+}
+
+void xdma_cleanup_transfer(struct xdma_engine *engine)
+{
+	struct xdma_transfer *transfer=&(engine->transfer);
+	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
+	if(transfer->cleanup_flags & XFER_FLAG_PAGES_ALLOC)
+		kvfree(transfer->pages);
+	
+}
 
 ssize_t xdma_xfer_aperture(struct xdma_engine *engine, bool write, u64 ep_addr,
 			unsigned int aperture, struct sg_table *sgt,
@@ -2080,12 +2115,13 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 {
 
 	ssize_t rv=0;
-	rv=xdma_validate_transfer(engine);
-	if(rv<0)
-		goto clean_up; 
+	if(xdma_validate_transfer(engine)<0)
+		goto cleanup; 
+	if(xdma_prepare_transfer(engine)<0)
+		goto cleanup;
 	
-	clean_up:
-	
+	cleanup:
+	xdma_cleanup_transfer(engine);
 	
 	return rv;
 }
