@@ -1866,6 +1866,8 @@ void xdma_cleanup_transfer(struct xdma_engine *engine)
 	#endif
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_ALLOC)
 		kvfree(transfer->pages);
+	/*clear for the next transfer*/	
+	memset(transfer, 0, sizeof(struct xdma_transfer));
 	
 }
 
