@@ -173,6 +173,7 @@
 #define MAX_DESC_BUS_ADDR (0xffffffffULL)
 
 #define DESC_MAGIC 0xAD4B0000UL
+#define DESC_ADJ_SHIFT 8
 
 #define C2H_WB 0x52B4UL
 
@@ -188,6 +189,10 @@
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
 /* obtain the 32 least significant (low) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_L(addr) (addr & 0xffffffffUL)
+#define split_into_val32(val64, val32_high, val32_low) \
+	val32_high=(typeof(val32_high)) ((val64)>>32);\
+	val32_low=(typeof(val32_low)) (val64);
+#define divide_roundup( x, y) ((x+(y-1))/y)
 
 #ifndef VM_RESERVED
 	#define VMEM_FLAGS (VM_IO | VM_DONTEXPAND | VM_DONTDUMP)
@@ -443,12 +448,15 @@ struct xdma_transfer_params {
 #define XFER_FLAG_PAGES_PINNED (1UL<<1)
 #define XFER_FLAG_SGTABLE_ALLOC (1UL<<2)
 #define XFER_FLAG_SGTABLE_MAPPED (1UL<<3)
+#define XFER_FLAG_DMA_RECORD_ALLOC (1UL<<4)
+#define XFER_FLAG_DESC_DMA_ALLOC (1UL<<5)
+
 /* holds data necessary to perform a trasfer*/
 struct xdma_transfer {
 	struct page **pages;
 	unsigned int num_pages;
 	struct sg_table sgt;
-	generic_dma_record(struct xdma_desc) *desc_adj_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
+	generic_dma_record(struct xdma_desc) *adj_desc_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
 	unsigned int cleanup_flags;/*track initialisation stages of a transfer for cleanup*/
 };

@@ -1398,7 +1398,7 @@ static int irq_setup(struct xdma_dev *xdev, struct pci_dev *pdev)
 }
 
 #ifdef __LIBXDMA_DEBUG__
-static void dump_desc(struct xdma_desc *desc_virt)
+static void dump_sg_with_desc(const struct scatterlist *sg, const struct xdma_desc *desc_virt)
 {
 	int j;
 	u32 *p = (u32 *)desc_virt;
@@ -1411,7 +1411,8 @@ static void dump_desc(struct xdma_desc *desc_virt)
 					    "next_addr",
 					    "next_addr_pad" };
 	char *dummy;
-
+	pr_info("SG entry: 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n", sg, sg_page(sg), 
+					sg->offset, sg->length, sg_dma_address(sg),sg_dma_len(sg));
 	/* remove warning about unused variable when debug printing is off */
 	dummy = field_name[0];
 
@@ -1428,6 +1429,8 @@ static void transfer_dump(struct xdma_transfer *transfer)
 {
 
 }
+#else 
+#define dump_sg_with_desc(...)  
 #endif /* __LIBXDMA_DEBUG__ */
 
 
@@ -1694,21 +1697,6 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 
 
 #ifdef __LIBXDMA_DEBUG__
-static void sgt_dump(struct sg_table *sgt)
-{
-	int i;
-	struct scatterlist *sg = sgt->sgl;
-
-	pr_info("sgt 0x%p, sgl 0x%p, nents %u/%u.\n", sgt, sgt->sgl, sgt->nents,
-		sgt->orig_nents);
-
-	for (i = 0; i < sgt->orig_nents; i++, sg = sg_next(sg))
-		pr_info("%d, 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n", i, sg,
-			sg_page(sg), sg->offset, sg->length, sg_dma_address(sg),
-			sg_dma_len(sg));
-}
-
-
 static const char* direction_to_string(enum dma_data_direction dir)
 {
 
@@ -1735,7 +1723,7 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	const struct xdma_transfer_params *transfer_params=&(engine->transfer_params);
 	const u64 addr_align_mask= ((u64) engine->addr_align)-1;
 	const u64 granularity_mask= ((u64) engine->len_granularity)-1;
-	dbg_fops("Transfer request on engine %s: buf 0x%px, length %zu, AXI address %lld, direction %s\n",
+	dbg_fops("Transfer request on engine %s: buf 0x%px, length %zu, AXI address 0x%llx, direction %s\n",
 		engine->name, transfer_params->buf, transfer_params->length, transfer_params->ep_addr, 
 		direction_to_string(transfer_params->dir));
 	if(unlikely(transfer_params->buf==NULL))
@@ -1750,7 +1738,8 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		if((((uintptr_t) transfer_params->buf) &addr_align_mask)!=0|| (transfer_params->ep_addr&addr_align_mask)!=0)
 		{
 			
-			pr_err("The address of transfer buffer 0x%px or AXI address %lld are not multiple of %u\n", transfer_params->buf, transfer_params->ep_addr, engine->addr_align);
+			pr_err("The address of transfer buffer 0x%px or AXI address %lld are not multiple of %u\n", 
+				transfer_params->buf, transfer_params->ep_addr, engine->addr_align);
 			return -EINVAL;
 		}
 		if((transfer_params->length & granularity_mask)!=0)
@@ -1766,6 +1755,136 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		
 	return rv;	
 }
+
+static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
+{
+	struct xdma_transfer *transfer=&(engine->transfer);
+	unsigned int block_num=0;
+	unsigned int desc_in_block;
+	struct scatterlist *sg_iter=transfer->sgt.sgl;
+	loff_t ep_addr= engine->streaming? : engine->transfer_params.ep_addr;
+	#ifdef __LIBXDMA_DEBUG__
+	struct scatterlist *sg_prev=sg_iter;
+	#endif
+	
+	if(transfer->sgt.nents>engine->desc_max)
+	{
+		pr_err("Transfer would take too many descriptors to complete." 
+		"Splitting of transfers is necessary, but not implemented\n");
+		return -EFBIG;
+	}
+	
+	/*calculate number of adjasent descriptor blocks*/
+	transfer->num_adj_blocks= divide_roundup(transfer->sgt.nents, engine->adj_block_len);
+	
+	dbg_sg("%u adjacent descriptor blocks are required for transfer on engine %s\n",
+		 transfer->num_adj_blocks, engine->name);
+		 
+	/*Implicit __GFP_NORETRY. the allocations are typically small,
+	if it fails we are probably close to be OOM anyway, so no point to try harder*/
+	transfer->adj_desc_blocks=kvcalloc(transfer->num_adj_blocks, 
+		sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL);
+	if(transfer->adj_desc_blocks==NULL)
+	{
+		dbg_sg("Failed to allocate memory for descriptor DMA records on engine %s.\n", engine->name);
+		return -ENOMEM; 
+	}
+	transfer->cleanup_flags|=XFER_FLAG_DMA_RECORD_ALLOC;
+	/* step through blocks of adjacent descriptors*/
+	for(block_num; block_num<transfer->num_adj_blocks; ++block_num)
+	{
+		unsigned int i=0;
+		/*calculation of the amount of descriptors in current block:
+		all blocks except last contain highest possible number
+		The last block is the remainder of the total number of sgt entries/descriptors,
+		but with numerical trick to substitute 0 remainder with full block length*/
+		desc_in_block= (block_num==transfer->num_adj_blocks-1)? 
+					((transfer->sgt.nents-1)& (engine->adj_block_len-1))+1 : engine->adj_block_len;
+		unsigned int next_adj=desc_in_block-1;
+		dma_addr_t desc_dma_addr;
+		
+		
+		transfer->adj_desc_blocks[block_num].virtual_addr=dma_pool_zalloc(engine->desc_pool,
+		/*memory is allocated at the first call and then stays in the pool,therefore it is acceptable to wait once*/
+						GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
+		if(transfer->adj_desc_blocks[block_num].virtual_addr==NULL)
+		{
+			dbg_sg("Failed to allocate memory from descriptor pool on engune %s\n", engine->name);		
+			return -ENOMEM;
+		}
+		transfer->adj_desc_blocks[block_num].dma_addr=desc_dma_addr;
+		transfer->adj_desc_blocks[block_num].length=engine->adj_block_len*sizeof(struct xdma_desc);
+		transfer->cleanup_flags|=XFER_FLAG_DESC_DMA_ALLOC;
+		/*link to previuos block. it has always max length*/
+		if(block_num>0)
+		{
+			split_into_val32(desc_dma_addr, transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].next_hi,
+					 transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].next_lo);	
+			
+			dump_sg_with_desc(sg_prev,&(transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1]));
+			#ifdef __LIBXDMA_DEBUG__
+				sg_prev=sg_next(sg_prev);
+			#endif
+			
+		}
+		dbg_sg("Adjacent block %u contains %u descriptors.\n", block_num, desc_in_block);
+		
+		/*step through desriptors in a block*/
+		for(i; i<desc_in_block; ++i, sg_iter=sg_next(sg_iter), desc_dma_addr+=sizeof(struct xdma_desc), --next_adj)
+		{
+			struct xdma_desc *current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
+			current_desc->control= DESC_MAGIC|(next_adj<<DESC_ADJ_SHIFT);/*desc magic and next adjacent*/
+			current_desc->bytes=sg_dma_len(sg_iter);
+			if(engine->dir== DMA_TO_DEVICE)
+			{
+				split_into_val32(sg_dma_address(sg_iter), current_desc->src_addr_hi,
+						 current_desc->src_addr_lo);
+				if(!engine->streaming)
+				{
+					split_into_val32(ep_addr, current_desc->dst_addr_hi, current_desc->dst_addr_lo);
+				}
+			}
+			else
+			{
+				split_into_val32(sg_dma_address(sg_iter), current_desc->dst_addr_hi, current_desc->dst_addr_lo);
+				if(!engine->streaming)
+				{
+					split_into_val32(ep_addr, current_desc->src_addr_hi,
+						 current_desc->src_addr_lo);
+				}	
+			}
+			
+			if(i>0) /*link to previuos descriptor*/
+			{		
+				split_into_val32(desc_dma_addr, (current_desc-1)->next_hi, (current_desc-1)->next_lo);
+									
+				dump_sg_with_desc(sg_prev, current_desc-1);
+			#ifdef __LIBXDMA_DEBUG__
+				sg_prev=sg_next(sg_prev);
+			#endif
+				
+			}
+			
+			if(!engine->streaming && !engine->non_incr_addr)
+				ep_addr+=sg_dma_len(sg_iter);
+			
+			
+			
+			
+		}
+	}
+	/*set control flags on the very last descriptor*/
+	{
+	u32 control_flags=(XDMA_DESC_STOPPED|XDMA_DESC_COMPLETED);
+	if(engine->streaming&& (engine->dir==DMA_TO_DEVICE) && engine->eop_flush)
+		control_flags|=XDMA_DESC_EOP;	
+	transfer->adj_desc_blocks[block_num-1].virtual_addr[desc_in_block-1].control|=control_flags ;
+	}
+	
+	dump_sg_with_desc(sg_prev, &(transfer->adj_desc_blocks[block_num-1].virtual_addr[desc_in_block-1]));
+	return 0;
+}
+
 
 #if !LINUX_VERSION_CHECK(5,8,0)
 /*steal the code from newer kernel versions. Kind of local backport.
@@ -1873,6 +1992,8 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_MAPPED;
 	dbg_sg("Num pages %lu, sg entries after allocation %u, after mapping %u\n", transfer->num_pages, transfer->sgt.orig_nents, transfer->sgt.nents);
 	
+	rv=xdma_sgtable_to_descriptors(engine);
+	
 	return rv;	
 }
 
@@ -1880,7 +2001,19 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
-	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_MAPPED);
+	
+	if(transfer->cleanup_flags & XFER_FLAG_DESC_DMA_ALLOC)
+	{
+		unsigned int i=0;
+		for(i; (i <transfer->num_adj_blocks)&& (transfer->adj_desc_blocks[i].length>0); ++i)
+			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[i].virtual_addr,
+					 transfer->adj_desc_blocks[i].dma_addr);
+	}
+	
+	if(transfer->cleanup_flags & XFER_FLAG_DMA_RECORD_ALLOC)
+		kvfree(transfer->adj_desc_blocks);
+	
+	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_MAPPED)
 		dma_unmap_sgtable(&(engine->xdev->pdev->dev), &(transfer->sgt), engine->dir, 0);
 	
 	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_ALLOC)
