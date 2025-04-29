@@ -646,8 +646,8 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 			if ((engine->irq_bitmask & mask) &&
 			    (engine->magic == MAGIC_ENGINE)) {
 				mask &= ~engine->irq_bitmask;
-				dbg_tfr("schedule_work, %s.\n", engine->name);
-				//schedule_work(&engine->work);
+				dbg_tfr("complete, %s.\n", engine->name);
+				complete(&(engine->engine_compl));
 			}
 		}
 	}
@@ -665,8 +665,8 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 			if ((engine->irq_bitmask & mask) &&
 			    (engine->magic == MAGIC_ENGINE)) {
 				mask &= ~engine->irq_bitmask;
-				dbg_tfr("schedule_work, %s.\n", engine->name);
-				//schedule_work(&engine->work);
+				dbg_tfr("complete, %s.\n", engine->name);
+				complete(&(engine->engine_compl));
 			}
 		}
 	}
@@ -732,8 +732,8 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 			(unsigned long)(&engine->regs));
 	/* Dummy read to flush the above write */
 	read_register(&irq_regs->channel_int_pending);
-	/* Schedule the bottom half */
-	//schedule_work(&engine->work);
+
+	complete(&(engine->engine_compl));
 
 	/*
 	 * need to protect access here if multiple MSI-X are used for
@@ -1560,9 +1560,10 @@ static int engine_init_regs(struct xdma_engine *engine)
 	/* Configure error interrupts by default */
 	reg_value = XDMA_CTRL_IE_DESC_ALIGN_MISMATCH;
 	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
-	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
 	reg_value |= XDMA_CTRL_IE_READ_ERROR;
+	reg_value |= XDMA_CTRL_IE_WRITE_ERROR;
 	reg_value |= XDMA_CTRL_IE_DESC_ERROR;
+	reg_value |= XDMA_CTRL_IE_INVALID_LENGTH;
 
 	/* if using polled mode, configure writeback address */
 	/*if (poll_mode) {
@@ -2009,11 +2010,40 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 		return rv; 
 	}
 	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_MAPPED;
-	dbg_sg("Num pages %lu, sg entries after allocation %u, after mapping %u\n", transfer->num_pages, transfer->sgt.orig_nents, transfer->sgt.nents);
+	dbg_sg("Num pages %lu, sg entries after allocation %u, after mapping %u\n", 
+		transfer->num_pages, transfer->sgt.orig_nents, transfer->sgt.nents);
 	
 	rv=xdma_sgtable_to_descriptors(engine);
 	
 	return rv;	
+}
+
+static void xdma_launch_transfer(struct xdma_engine *engine)
+{
+	dma_addr_t first_desc_addr=engine->transfer.adj_desc_blocks[0].dma_addr;
+	
+	if((engine->dir==DMA_FROM_DEVICE)&&(engine->streaming)&&(enable_st_c2h_credit>0))
+		write_register(min(enable_st_c2h_credit, XDMA_MAX_C2H_CREDITS), 
+		&(engine->sgdma_regs->credits), 0);
+	
+	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
+	write_register((u32) (first_desc_addr>>32), &(engine->sgdma_regs->first_desc_hi), 0);
+	write_register((engine->transfer.adj_desc_blocks[0].virtual_addr[0].control & DESC_ADJ_MASK)>>DESC_ADJ_SHIFT,
+			&(engine->sgdma_regs->first_desc_adjacent), 0);
+	
+	reinit_completion(&(engine->engine_compl));
+	{/*disable channel writeback*/
+	u32 channel_control_flags= (XDMA_CTRL_STM_MODE_WB|XDMA_CTRL_IE_DESC_ERROR|XDMA_CTRL_IE_READ_ERROR|XDMA_CTRL_IE_WRITE_ERROR
+					|XDMA_CTRL_IE_INVALID_LENGTH|XDMA_CTRL_IE_MAGIC_STOPPED|XDMA_CTRL_IE_DESC_ALIGN_MISMATCH);
+	if(!engine->streaming && engine->non_incr_addr)
+		channel_control_flags|=XDMA_CTRL_NON_INCR_ADDR;
+	
+	/*supplememt for poll mode*/
+	channel_control_flags|= (XDMA_CTRL_IE_DESC_COMPLETED|XDMA_CTRL_IE_DESC_STOPPED);
+	channel_control_flags|= XDMA_CTRL_RUN_STOP;
+	
+	write_register(channel_control_flags, &(engine->regs->control), 0);
+	}
 }
 
 static void xdma_cleanup_transfer(struct xdma_engine *engine)
@@ -2375,6 +2405,7 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 	rv=xdma_prepare_transfer(engine);
 	if(rv<0)
 		goto cleanup;
+	xdma_launch_transfer(engine);
 	
 	cleanup:
 	xdma_cleanup_transfer(engine);
