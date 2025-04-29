@@ -244,10 +244,7 @@ void print_fmode(const unsigned char *file_name, unsigned int f_mode)
 	
 }
 #else
-inline void print_file_flags(const unsigned char *file_name, unsigned int f_flags)
-{}
-inline void print_fmode(const unsigned char *file_name, unsigned int f_flags)
-{}
+#define print_file_flags(...)
 #endif
 int char_open(struct inode *inode, struct file *filp)
 {

@@ -50,7 +50,10 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev);
 int xpdev_create_interfaces(struct xdma_pci_dev *xpdev);
 
 int bridge_mmap(struct file *filp, struct vm_area_struct *vma);
-
+#ifdef __LIBXDMA_DEBUG__
 void print_fmode(const unsigned char *file_name, unsigned int f_mode);
+#else
+#define print_fmode(...)
+#endif
 
 #endif /* __XDMA_CHRDEV_H__ */
