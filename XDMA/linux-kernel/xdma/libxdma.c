@@ -43,14 +43,33 @@ static int config_bar_num=-1;
 module_param(config_bar_num, int, 0444);/*no point to make it writable*/
 MODULE_PARM_DESC(config_bar_num, "Input the config block BAR number");
 
-static unsigned int interrupt_mode;
-module_param(interrupt_mode, uint, 0644);
-MODULE_PARM_DESC(interrupt_mode, "0 - Auto , 1 - MSI, 2 - Legacy, 3 - MSI-x");
+static const unsigned int interrupt_mode=0;
 
+#ifdef XDMA_C2H_CREDITS
+static unsigned int enable_st_c2h_credit = XDMA_C2H_CREDITS;
+#else
 static unsigned int enable_st_c2h_credit = 0;
+#endif
 module_param(enable_st_c2h_credit, uint, 0644);
 MODULE_PARM_DESC(enable_st_c2h_credit,
 	"Set 1 to enable ST C2H engine credit feature, default is 0 ( credit control disabled)");
+
+#ifdef XDMA_H2C_TIMEOUT
+unsigned int h2c_timeout_ms = XDMA_H2C_TIMEOUT;
+#else
+unsigned int h2c_timeout_ms = 10000;
+#endif
+module_param(h2c_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(h2c_timeout_ms, "H2C sgdma timeout in milliseconds, default is 10 seconds.");
+
+#ifdef XDMA_C2H_TIMEOUT
+unsigned int c2h_timeout_ms = XDMA_C2H_TIMEOUT;
+#else 
+unsigned int c2h_timeout_ms = 10000;
+#endif
+module_param(c2h_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(c2h_timeout_ms, "C2H sgdma timeout in milliseconds, default is 10 seconds.");
+
 
 
 #define XDMA_PERF_NUM_DESC 128

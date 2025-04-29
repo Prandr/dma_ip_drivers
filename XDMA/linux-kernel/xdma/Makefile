@@ -1,3 +1,4 @@
+
 SHELL = /bin/bash
 #
 # optional makefile parameters:
@@ -27,6 +28,18 @@ endif
 ifneq ($(config_bar_num),)
 	EXTRA_CFLAGS += -DXDMA_CONFIG_BAR_NUM=$(config_bar_num)
 endif
+
+ifneq ($(c2h_credits),)
+	EXTRA_CFLAGS += -DXDMA_C2H_CREDITS=$(c2h_credits)
+endif
+ifneq ($(h2c_timeout),)
+	EXTRA_CFLAGS += -DXDMA_H2C_TIMEOUT=$(h2c_timeout)
+endif
+ifneq ($(c2h_timeout),)
+	EXTRA_CFLAGS += -DXDMA_C2H_TIMEOUT=$(c2h_timeout)
+endif
+
+
 #EXTRA_CFLAGS += -DINTERNAL_TESTING
 
 ifneq ($(KERNELRELEASE),)

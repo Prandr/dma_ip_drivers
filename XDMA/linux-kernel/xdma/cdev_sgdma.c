@@ -33,17 +33,6 @@
 #include "cdev_sgdma.h"
 
 
-/* Module Parameters */
-unsigned int h2c_timeout_ms = 10000;
-module_param(h2c_timeout_ms, uint, 0644);
-MODULE_PARM_DESC(h2c_timeout_ms, "H2C sgdma timeout in milliseconds, default is 10 seconds.");
-
-unsigned int c2h_timeout_ms = 10000;
-module_param(c2h_timeout_ms, uint, 0644);
-MODULE_PARM_DESC(c2h_timeout_ms, "C2H sgdma timeout in milliseconds, default is 10 seconds.");
-
-
-
 
 /*
  * character device file operations for SG DMA engine
