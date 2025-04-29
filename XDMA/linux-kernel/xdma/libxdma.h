@@ -191,8 +191,8 @@
 #define PCI_DMA_L(addr) (addr & 0xffffffffUL)
 /*split a 64-bit value into 32-bit values. To be used with descriptors*/
 #define split_into_val32(val64, val32_high, val32_low) \
-	val32_high=cpu32_to_le32((typeof(val32_high)) ((val64)>>32));\
-	val32_low=cpu32_to_le32((typeof(val32_low)) (val64));
+	val32_high=cpu_to_le32((typeof(val32_high)) ((val64)>>32));\
+	val32_low=cpu_to_le32((typeof(val32_low)) (val64));
 #define divide_roundup( x, y) ((x+(y-1))/y)
 
 #ifndef VM_RESERVED
