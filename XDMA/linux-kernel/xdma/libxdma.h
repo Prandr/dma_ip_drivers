@@ -382,7 +382,7 @@ struct interrupt_regs {
 } __packed;
 
 struct sgdma_common_regs {
-	u32 padding[8];
+	u32 padding[4];
 	u32 credit_mode_enable;
 	u32 credit_mode_enable_w1s;
 	u32 credit_mode_enable_w1c;
