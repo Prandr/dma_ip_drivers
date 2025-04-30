@@ -1430,7 +1430,7 @@ static void dump_sg_with_desc(const struct scatterlist *sg, const struct xdma_de
 					    "next_addr",
 					    "next_addr_pad" };
 	char *dummy;
-	pr_info("SG entry: 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n", sg, sg_page(sg), 
+	pr_info("SG entry: 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n", sg, sg_page((struct scatterlist *) sg), 
 					sg->offset, sg->length, sg_dma_address(sg),sg_dma_len(sg));
 	/* remove warning about unused variable when debug printing is off */
 	dummy = field_name[0];
@@ -2010,7 +2010,7 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 		return rv; 
 	}
 	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_MAPPED;
-	dbg_sg("Num pages %lu, sg entries after allocation %u, after mapping %u\n", 
+	dbg_sg("Num pages %u, sg entries after allocation %u, after mapping %u\n", 
 		transfer->num_pages, transfer->sgt.orig_nents, transfer->sgt.nents);
 	
 	rv=xdma_sgtable_to_descriptors(engine);
@@ -2023,7 +2023,7 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 	dma_addr_t first_desc_addr=engine->transfer.adj_desc_blocks[0].dma_addr;
 	
 	if((engine->dir==DMA_FROM_DEVICE)&&(engine->streaming)&&(enable_st_c2h_credit>0))
-		write_register(min(enable_st_c2h_credit, XDMA_MAX_C2H_CREDITS), 
+		write_register(min_t(unsigned int, enable_st_c2h_credit, XDMA_MAX_C2H_CREDITS), 
 		&(engine->sgdma_regs->credits), 0);
 	
 	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
