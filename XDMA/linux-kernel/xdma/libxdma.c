@@ -2046,6 +2046,28 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 	}
 }
 
+static long xdma_wait_for_transfer(struct xdma_engine *engine)
+{
+	long rv;
+	u32 last_completed_descriptors=0;
+	unsigned int timeout=(engine->dir==DMA_TO_DEVICE)? h2c_timeout_ms: c2h_timeout_ms;
+	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
+	
+	/*In case of timeout check if some progress has been made, that is descriptors completed.
+	If so return, to wait to allow transfer to proceed*/
+	while((rv=wait_for_completion_interruptible_timeout( &(engine->engine_compl), timeout_jiffies))==0)
+	{
+		u32 current_completed_descriptors=ioread32( &(engine->regs->completed_desc_count));
+		if(current_completed_descriptors > last_completed_descriptors)
+			last_completed_descriptors=current_completed_descriptors;
+		else
+			break;
+	}
+	dbg_tfr("Wait for completion on engine %s returned %ld\n", engine->name, rv);
+	
+	return rv;
+}
+
 static void xdma_cleanup_transfer(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
@@ -2406,6 +2428,7 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 	if(rv<0)
 		goto cleanup;
 	xdma_launch_transfer(engine);
+	rv=xdma_wait_for_transfer(engine);
 	
 	cleanup:
 	xdma_cleanup_transfer(engine);
