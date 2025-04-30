@@ -57,7 +57,7 @@ MODULE_PARM_DESC(enable_st_c2h_credit,
 #ifdef XDMA_H2C_TIMEOUT
 unsigned int h2c_timeout_ms = XDMA_H2C_TIMEOUT;
 #else
-unsigned int h2c_timeout_ms = 10000;
+unsigned int h2c_timeout_ms = 5000;
 #endif
 module_param(h2c_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(h2c_timeout_ms, "H2C sgdma timeout in milliseconds, default is 10 seconds.");
@@ -65,7 +65,7 @@ MODULE_PARM_DESC(h2c_timeout_ms, "H2C sgdma timeout in milliseconds, default is 
 #ifdef XDMA_C2H_TIMEOUT
 unsigned int c2h_timeout_ms = XDMA_C2H_TIMEOUT;
 #else 
-unsigned int c2h_timeout_ms = 10000;
+unsigned int c2h_timeout_ms = 5000;
 #endif
 module_param(c2h_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(c2h_timeout_ms, "C2H sgdma timeout in milliseconds, default is 10 seconds.");
