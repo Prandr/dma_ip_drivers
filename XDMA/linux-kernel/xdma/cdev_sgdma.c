@@ -73,6 +73,9 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 
 	rv = xdma_xfer_submit(engine);
 	
+	if(!engine->streaming && !engine->non_incr_addr &&(rv>0))
+		*pos+=rv;
+	
 	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	
 	return rv;

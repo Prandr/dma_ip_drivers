@@ -502,8 +502,7 @@ struct xdma_engine {
 	struct xdma_transfer_params transfer_params;
 	struct xdma_transfer transfer;
 	struct dma_pool *desc_pool;/*DMA pool for descriptors*/
-	struct completion engine_compl;
-	u32 status;	
+	struct completion engine_compl;	
 	/* only used for MSIX mode to store per-engine interrupt mask value */
 	u32 interrupt_enable_mask_value;
 
