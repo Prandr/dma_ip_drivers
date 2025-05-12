@@ -2723,7 +2723,7 @@ static void remove_engines(struct xdma_dev *xdev)
 			dbg_sg("%s, %d removed", engine->name, i);
 		}
 	}
-	kvfree(xdev->engine_h2c);
+	kfree(xdev->engine_h2c);
 
 	for (i = 0; i < xdev->c2h_channel_num; i++) {
 		engine = &xdev->engine_c2h[i];
@@ -2735,7 +2735,7 @@ static void remove_engines(struct xdma_dev *xdev)
 			dbg_sg("%s, %d removed", engine->name, i);
 		}
 	}
-	kvfree(xdev->engine_c2h);
+	kfree(xdev->engine_c2h);
 }
 
 /*read max read request size register from the device and set parameter accordingly*/
