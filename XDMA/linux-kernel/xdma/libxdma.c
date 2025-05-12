@@ -2968,7 +2968,10 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	/* enable bus master capability */
 	pci_set_master(pdev);
-
+	/*limit sg entries after possible merging by DMA mapping 
+		to max descriptor length rounded down to page boundary*/
+	dma_set_max_seg_size( &(pdev->dev), XDMA_DESC_BLEN_MAX & PAGE_MASK);
+	
 	rv = request_regions(xdev, pdev);
 	if (unlikely(rv))
 		goto err_request_regions;
