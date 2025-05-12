@@ -724,7 +724,7 @@ static int map_single_bar(struct xdma_dev *xdev, struct pci_dev *dev, int idx, r
 	dbg_init("BAR%d: %llu bytes to be mapped.\n", idx, *bar_len);
 	xdev->bar[idx] = pci_iomap(dev, idx, *bar_len);
 
-	if (!xdev->bar[idx]) {
+	if (unlikely(!xdev->bar[idx])) {
 		pr_info("Could not map BAR %d.\n", idx);
 		return -1;
 	}
@@ -931,7 +931,7 @@ static int map_bars(struct xdma_dev *xdev, struct pci_dev *dev)
 	}
 
 	rv = identify_bars(xdev, bar_id_list, bar_id_idx, config_bar_pos);
-	if (rv < 0) {
+	if (unlikely(rv < 0)) {
 		pr_err("Failed to identify bars\n");
 		goto fail;
 	}
@@ -1633,12 +1633,12 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	
 
 	rv = engine_alloc_resource(engine);
-	if (rv)
+	if (unlikely(rv))
 		return rv;
 		
 	xdev->engines_num++;
 	rv = engine_init_regs(engine);
-	if (rv)
+	if (unlikely(rv))
 		return rv;
 	/*init completion was renamed twice */
 	#if LINUX_VERSION_CHECK(5,11,0)
@@ -1692,7 +1692,7 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	if(unlikely(transfer_params->length==0))
 		return -EINVAL;
 	rv=position_check(MAX_RESOURCE_SIZE, transfer_params->ep_addr, engine->addr_align);
-	if(rv<0)
+	if(unlikely(rv<0))
 		return rv;
 	if (engine->non_incr_addr)
 	{
@@ -1728,7 +1728,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	struct scatterlist *sg_prev=sg_iter;
 	#endif
 	
-	if(transfer->sgt.nents>engine->desc_max)
+	if(unlikely(transfer->sgt.nents>engine->desc_max))
 	{
 		pr_err("Transfer would take too many descriptors to complete." 
 		"Splitting of transfers is necessary, but not implemented\n");
@@ -1745,7 +1745,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	if it fails we are probably close to be OOM anyway, so no point to try harder*/
 	transfer->adj_desc_blocks=kvcalloc(transfer->num_adj_blocks, 
 		sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL);
-	if(transfer->adj_desc_blocks==NULL)
+	if(unlikely(transfer->adj_desc_blocks==NULL))
 	{
 		dbg_sg("Failed to allocate memory for descriptor DMA records on engine %s.\n", engine->name);
 		return -ENOMEM; 
@@ -1768,7 +1768,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		transfer->adj_desc_blocks[block_num].virtual_addr=dma_pool_zalloc(engine->desc_pool,
 		/*memory is allocated at the first call and then stays in the pool,therefore it is acceptable to wait once*/
 						GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
-		if(transfer->adj_desc_blocks[block_num].virtual_addr==NULL)
+		if(unlikely(transfer->adj_desc_blocks[block_num].virtual_addr==NULL))
 		{
 			dbg_sg("Failed to allocate memory from descriptor pool on engune %s\n", engine->name);		
 			return -ENOMEM;
@@ -1945,7 +1945,7 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	transfer->cleanup_flags|=XFER_FLAG_SGTABLE_ALLOC;
 	
 	rv=dma_map_sgtable(&(engine->xdev->pdev->dev), &(transfer->sgt), engine->dir, 0);
-	if (rv<0)
+	if (unlikely(rv<0))
 	{
 		dbg_sg("Failed to map sg table for engine %s\n", engine->name);
 		return rv; 
@@ -2856,7 +2856,7 @@ static int probe_engines(struct xdma_dev *xdev)
 	{
 		
 		xdev->engine_h2c=kcalloc(xdev->h2c_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-		if(xdev->engine_h2c==NULL)
+		if(unlikely(xdev->engine_h2c==NULL))
 		{
 			pr_err("Failed to allocate memory for %s engines", "H2C");
 			return -ENOMEM;
@@ -2879,7 +2879,7 @@ static int probe_engines(struct xdma_dev *xdev)
 	if (xdev->c2h_channel_num>0)
 	{
 		xdev->engine_c2h=kcalloc(xdev->c2h_channel_num, sizeof(struct xdma_engine), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-		if(xdev->engine_c2h==NULL)
+		if(unlikely(xdev->engine_c2h==NULL))
 		{
 			pr_err("Failed to allocate memory for %s engines", "C2H");
 			return -ENOMEM;
@@ -2923,7 +2923,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	/* allocate zeroed device book keeping structure */
 	xdev = alloc_dev_instance(pdev);
-	if (!xdev)
+	if (unlikely(!xdev))
 		goto err_alloc_dev_instance;
 	xdev->mod_name = mname;
 	xdev->user_max = *user_max;
@@ -2942,11 +2942,11 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 		xdev->c2h_channel_num = XDMA_CHANNEL_NUM_MAX;
 
 	rv = xdev_list_add(xdev);
-	if (rv < 0)
+	if (unlikely(rv < 0))
 		goto err_xdev_list_add;
 
 	rv = pci_enable_device(pdev);
-	if (rv) {
+	if (unlikely(rv)) {
 		dbg_init("pci_enable_device() failed, %d.\n", rv);
 		goto err_pci_enable_device;
 	}
@@ -2964,15 +2964,15 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	pci_set_master(pdev);
 
 	rv = request_regions(xdev, pdev);
-	if (rv)
+	if (unlikely(rv))
 		goto err_request_regions;
 
 	rv = map_bars(xdev, pdev);
-	if (rv)
+	if (unlikely(rv))
 		goto err_map_bars;
 	
 	rv = set_dma_mask(pdev);
-	if (rv)
+	if (unlikely(rv))
 		goto err_set_dma_mask;
 
 	check_nonzero_interrupt_status(xdev);
@@ -2986,15 +2986,15 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte", 
 		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width);
 	rv = probe_engines(xdev);
-	if (rv)
+	if (unlikely(rv))
 		goto err_probe_engines;
 
 	rv = enable_msi_msix(xdev, pdev);
-	if (rv < 0)
+	if (unlikely(rv < 0))
 		goto err_enable_msi_msix;
 
 	rv = irq_setup(xdev, pdev);
-	if (rv < 0)
+	if (unlikely(rv < 0))
 		goto err_irq_setup;
 
 	/*if (!poll_mode)*/
