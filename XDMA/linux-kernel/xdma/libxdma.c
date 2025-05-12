@@ -2071,7 +2071,7 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 	
 	return transfer_result;
 }
-static void xdma_cleanup_transfer(struct xdma_engine *engine)
+static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
@@ -2094,14 +2094,20 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine)
 		sg_free_table(&(transfer->sgt));
 	
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_PINNED)
-	#if LINUX_VERSION_CHECK(5,6,0)
-		unpin_user_pages(transfer->pages, transfer->num_pages);
+	#if LINUX_VERSION_CHECK(5,6,0)/*Mark pages dirty for successful C2H transfers*/
+		unpin_user_pages_dirty_lock(transfer->pages, transfer->num_pages,
+					 (engine->dir==DMA_FROM_DEVICE) && transfer_ok);
 	#else
 	{
 		struct page **page_iter=transfer->pages;
 		struct page **pages_end=transfer->pages+transfer->num_pages;
 		for(page_iter; page_iter!=pages_end; ++page_iter)
+		{
+			if((engine->dir==DMA_FROM_DEVICE) && transfer_ok)
+				set_page_dirty_lock(*page_iter);
+			
 			put_page(*page_iter);
+		}
 	}	
 	#endif
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_ALLOC)
@@ -2435,7 +2441,7 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 	rv=xdma_finalise_transfer(engine, rv);
 	
 	cleanup:
-	xdma_cleanup_transfer(engine);
+	xdma_cleanup_transfer(engine, rv>0);
 	
 	return rv;
 }
