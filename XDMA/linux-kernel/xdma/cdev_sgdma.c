@@ -229,7 +229,13 @@ static int ioctl_do_perf_get(struct xdma_engine *engine, unsigned long arg)
 
 static int ioctl_do_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 {
-	return engine_addrmode_set(engine, arg);
+	int set;
+	int rv = get_user(set, (int __user *) arg);
+	if(unlikely(rv<0))
+		return rv;
+
+	engine_addrmode_set(engine, !!set);
+	return 0;
 }
 
 static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
@@ -419,9 +425,13 @@ static int char_sgdma_open(struct inode *inode, struct file *filp)
 		engine->eop_flush=(filp->f_flags& O_TRUNC)? 1: 0;
 		
 			
-	}else if ((ret_val=generic_file_open(inode, filp ))<0)
+	}else /*MM DMA engine*/
 	{
-		goto not_open;	
+		if ((ret_val=generic_file_open(inode, filp ))<0)
+			goto not_open;
+		
+		engine_addrmode_set(engine, (filp->f_flags& O_TRUNC)? 1: 0);
+		
 	}
 	print_fmode(filp->f_path.dentry->d_iname, filp->f_mode);
 	

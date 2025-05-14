@@ -3313,18 +3313,14 @@ int xdma_user_isr_disable(void *dev_hndl, unsigned int mask)
 	return 0;
 }
 
-int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg)
+void engine_addrmode_set(struct xdma_engine *engine, bool set)
 {
-	int rv;
-	unsigned long dst;
 	u32 w = XDMA_CTRL_NON_INCR_ADDR;
-
 	dbg_perf("IOCTL_XDMA_ADDRMODE_SET\n");
-	rv = get_user(dst, (int __user *)arg);
-
-	if (rv == 0) {
-		engine->non_incr_addr = !!dst;
-		if (engine->non_incr_addr)
+	if(engine->non_incr_addr!=set)
+	{	
+		engine->non_incr_addr = set;
+		if (set)
 			write_register(
 				w, &engine->regs->control_w1s,
 				(unsigned long)(&engine->regs->control_w1s) -
@@ -3334,8 +3330,8 @@ int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 				w, &engine->regs->control_w1c,
 				(unsigned long)(&engine->regs->control_w1c) -
 					(unsigned long)(&engine->regs));
+		
+		engine_alignments(engine);
 	}
-	engine_alignments(engine);
-
-	return rv;
+	
 }
