@@ -1384,10 +1384,25 @@ static void dump_desc(const struct xdma_desc *desc_virt)
 	pr_info("\n");
 }
 
-static void transfer_dump(struct xdma_transfer *transfer)
+static const char* direction_to_string(enum dma_data_direction dir)
 {
 
+	switch(dir)
+	{
+	case DMA_BIDIRECTIONAL:
+	 	return "DMA_BIDIRECTIONAL";
+	case DMA_TO_DEVICE:
+	 	return "DMA_TO_DEVICE";
+	case DMA_FROM_DEVICE:
+	 	return "DMA_FROM_DEVICE";
+	case DMA_NONE:
+	 	return "DMA_NONE";
+	default:
+		return "*ERROR* invalid DMA direction";
+	}
+	 	 
 }
+
 #else 
 #define dump_desc(...)  
 #endif /* __LIBXDMA_DEBUG__ */
@@ -1595,7 +1610,7 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	unsigned int desc_max;
 	unsigned int offset=get_engine_offset(dir, channel);
 	struct xdma_engine *engine= dir==DMA_TO_DEVICE? &(xdev->engine_h2c[channel]): &(xdev->engine_c2h[channel]);
-	dbg_init("channel %d, offset 0x%x, dir %d.\n", channel, offset, dir);
+	dbg_init("channel %d, offset 0x%x, dir %s.\n", channel, offset,direction_to_string( dir));
 	
 
 	/* set magic */
@@ -1670,26 +1685,7 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 
 
 
-#ifdef __LIBXDMA_DEBUG__
-static const char* direction_to_string(enum dma_data_direction dir)
-{
 
-	switch(dir)
-	{
-	case DMA_BIDIRECTIONAL:
-	 	return "DMA_BIDIRECTIONAL";
-	case DMA_TO_DEVICE:
-	 	return "DMA_TO_DEVICE";
-	case DMA_FROM_DEVICE:
-	 	return "DMA_FROM_DEVICE";
-	case DMA_NONE:
-	 	return "DMA_NONE";
-	default:
-		return "*ERROR* invalid DMA direction";
-	}
-	 	 
-}
-#endif
 /*check transfer parameters for validity */
 static int xdma_validate_transfer(const struct xdma_engine *engine)
 {	
