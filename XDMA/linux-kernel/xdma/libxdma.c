@@ -2021,6 +2021,17 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	return rv;
 }
 
+static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 num_descriptors)
+{
+	ssize_t completed_length=0;
+	unsigned int i=0;
+	for(i; i< num_descriptors; ++i)
+		completed_length += engine->transfer.adj_desc_blocks[0].virtual_addr[i].bytes;
+		
+	return completed_length;
+
+}
+
 static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transfer_result)
 {
 
@@ -2062,19 +2073,8 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 			}
 		}
 		
-		/*calculate and return total length of completed (SG entries/descriptors) 
-		(in separate block to be able declare variables here*/ 
-		{
-			struct scatterlist *sg_iter=engine->transfer.sgt.sgl;
-			unsigned int i=0;
-			for(transfer_result=0 ;(i<completed_descriptors)&&(i<engine->transfer.sgt.nents); 
-				++i, sg_iter=sg_next(sg_iter))
-			{
-				transfer_result+=sg_dma_len(sg_iter);
-			}
-		
-		}
-		
+		/*calculate and return total length of completed descriptors*/ 
+		transfer_result=calculate_completed_length(engine, completed_descriptors);
 	}
 	
 	enable_interrupts:
