@@ -397,7 +397,7 @@ struct sgdma_common_regs {
 /* Structure for polled mode descriptor writeback */
 struct xdma_poll_wb {
 	u32 completed_desc_count;
-	u32 reserved_1[7];
+	//u32 reserved_1[7];
 } __packed;
 
 
@@ -513,11 +513,12 @@ struct xdma_engine {
 	dma_addr_t cyclic_result_bus;	/* bus addr for transfer */
 	u8 *perf_buf_virt;
 	dma_addr_t perf_buf_bus; /* bus address */
-
-	/* Members associated with polled mode support */
-	u8 *poll_mode_addr_virt;	/* virt addr for descriptor writeback */
-	dma_addr_t poll_mode_bus;	/* bus addr for descriptor writeback */
 #endif
+	/* Members associated with polled mode support */
+#ifdef XDMA_POLL_MODE
+	generic_dma_record(volatile struct xdma_poll_wb) poll_mode_wb;
+#endif
+
 	/* Members associated with interrupt mode support */
 
 	//spinlock_t lock;		/* protects concurrent access */

@@ -1426,10 +1426,12 @@ static void engine_alignments(struct xdma_engine *engine)
 
 static void engine_free_resource(struct xdma_engine *engine)
 {
-	//struct xdma_dev *xdev = engine->xdev;
-
-	
-	 dma_pool_destroy(engine->desc_pool);
+	dma_pool_destroy(engine->desc_pool);
+	 
+#ifdef XDMA_POLL_MODE
+        dma_free_coherent( &(engine->xdev->pdev->dev), engine->poll_mode_wb.length, 
+        		engine->poll_mode_wb.virtual_addr, engine->poll_mode_wb.dma_addr);
+#endif
 }
 
 static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
@@ -1488,44 +1490,43 @@ static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
  */
 static int engine_init_regs(struct xdma_engine *engine)
 {
-	u32 reg_value;
-	/*int rv = 0;*/
-
-	write_register(XDMA_CTRL_NON_INCR_ADDR, &engine->regs->control_w1c,
-		       (unsigned long)(&engine->regs->control_w1c) -
-			       (unsigned long)(&engine->regs));
-
-	engine_alignments(engine);
-
-	/* Configure error interrupts by default */
-	reg_value = XDMA_CTRL_IE_DESC_ALIGN_MISMATCH;
-	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
-	reg_value |= XDMA_CTRL_IE_READ_ERROR;
-	reg_value |= XDMA_CTRL_IE_WRITE_ERROR;
-	reg_value |= XDMA_CTRL_IE_DESC_ERROR;
-	reg_value |= XDMA_CTRL_IE_INVALID_LENGTH;
-
-	/* if using polled mode, configure writeback address */
-	/*if (poll_mode) {
-		rv = engine_writeback_setup(engine);
-		if (rv) {
-			dbg_init("%s descr writeback setup failed.\n",
-				 engine->name);
-			goto fail_wb;
-		}
-	} else*/ {
-		/* enable the relevant completion interrupts */
-		reg_value |= XDMA_CTRL_IE_DESC_STOPPED;
-		reg_value |= XDMA_CTRL_IE_DESC_COMPLETED;
-	}
-
+	/*configure both control and interrupt registers just once*/
+	u32 interrupt_reg_value=0;
+	u32 control_reg_value=
+			(XDMA_CTRL_IE_DESC_ERROR
+			|XDMA_CTRL_IE_READ_ERROR
+			|XDMA_CTRL_IE_WRITE_ERROR
+			|XDMA_CTRL_IE_INVALID_LENGTH
+			|XDMA_CTRL_IE_MAGIC_STOPPED
+			|XDMA_CTRL_IE_DESC_ALIGN_MISMATCH
+			|XDMA_CTRL_IE_DESC_COMPLETED
+			|XDMA_CTRL_IE_DESC_STOPPED);
+	
+#ifdef XDMA_POLL_MODE
+/* if using polled mode,  enable writeback and configure its address, disable interrupts */
+	engine->poll_mode_wb.virtual_addr->completed_desc_count=0;
+	write_register((u32) engine->poll_mode_wb.dma_addr, &(engine->regs->poll_mode_wb_lo), 0);
+	write_register((u32) (engine->poll_mode_wb.dma_addr>>32), &(engine->regs->poll_mode_wb_hi), 0);
+	control_reg_value|=XDMA_CTRL_POLL_MODE_WB;
+#else/
+	/* Othwerwise configure error interrupts to match control register by default,
+	thus all events trigger interrupt  */
+	interrupt_reg_value=control_reg_value;
+#endif
+	/*disable channel writeback*/
+	control_reg_value|=XDMA_CTRL_STM_MODE_WB;
 	/* Apply engine configurations */
-	write_register(reg_value, &engine->regs->interrupt_enable_mask,
+	write_register(control_reg_value, &engine->regs->control,
+		       (unsigned long)(&engine->regs->control) -
+			       (unsigned long)(&engine->regs));
+	
+	write_register(interrupt_reg_value, &engine->regs->interrupt_enable_mask,
 		       (unsigned long)(&engine->regs->interrupt_enable_mask) -
 			       (unsigned long)(&engine->regs));
 
-	engine->interrupt_enable_mask_value = reg_value;
-
+	engine->interrupt_enable_mask_value = interrupt_reg_value;
+	
+	engine_alignments(engine);
 	/* only enable credit mode for AXI-ST C2H */
 	if (enable_st_c2h_credit && engine->streaming &&
 	    engine->dir == DMA_FROM_DEVICE) {
@@ -1556,7 +1557,18 @@ static int engine_alloc_resource(struct xdma_engine *engine)
         		return -ENOMEM;
         	}
         	
-	
+#ifdef XDMA_POLL_MODE
+	engine->poll_mode_wb.virtual_addr=dma_alloc_coherent( &(xdev->pdev->dev), sizeof(struct xdma_poll_wb), 
+					&(engine->poll_mode_wb.dma_addr), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
+	if(unlikely(engine->poll_mode_wb.virtual_addr==NULL))
+	{
+		pr_err("Failed to alloacate structure for poll mode.\n");
+		return -ENOMEM;
+	}
+	engine->poll_mode_wb.length= sizeof(struct xdma_poll_wb);
+	dbg_init("Poll mode wb: virt %p, DMA addr %llx\n", engine->poll_mode_wb.virtual_addr, engine->poll_mode_wb.dma_addr);
+#endif
+
 
 	return 0;
 /*
@@ -1590,10 +1602,12 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	engine->magic = MAGIC_ENGINE;
 
 	engine->channel = channel;
-
+	
+#ifndef XDMA_POLL_MODE
 	/* engine interrupt request bit */
 	engine->irq_bitmask = (1 << XDMA_ENG_IRQ_NUM) - 1;
 	engine->irq_bitmask <<= (xdev->engines_num * XDMA_ENG_IRQ_NUM);
+#endif
 	engine->bypass_offset = xdev->engines_num * BYPASS_MODE_SPACING;
 
 	/* parent */
@@ -1970,6 +1984,13 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	return rv;	
 }
 
+/*retrieve first adjacent count from an adjacent block. can be used for setting up transfer as well
+as to figure out the number of descriptors in the block */
+static u32 get_starting_adj_count(struct xdma_engine *engine, unsigned int adj_block_num)
+{
+	return (le32_to_cpu(engine->transfer.adj_desc_blocks[adj_block_num].virtual_addr[0].control) & DESC_ADJ_MASK)>>DESC_ADJ_SHIFT;
+}
+
 static void xdma_launch_transfer(struct xdma_engine *engine)
 {
 	dma_addr_t first_desc_addr=engine->transfer.adj_desc_blocks[0].dma_addr;
@@ -1977,26 +1998,18 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 	if((engine->dir==DMA_FROM_DEVICE)&&(engine->streaming)&&(enable_st_c2h_credit>0))
 		write_register(min_t(unsigned int, enable_st_c2h_credit, XDMA_MAX_C2H_CREDITS), 
 		&(engine->sgdma_regs->credits), 0);
-	reinit_completion(&(engine->engine_compl));
+	reinit_completion(&(engine->engine_compl));	
+#ifdef XDMA_POLL_MODE
+	engine->poll_mode_wb.virtual_addr->completed_desc_count=0;
+#endif
 	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
 	write_register((u32) (first_desc_addr>>32), &(engine->sgdma_regs->first_desc_hi), 0);
-	write_register((le32_to_cpu(engine->transfer.adj_desc_blocks[0].virtual_addr[0].control) & DESC_ADJ_MASK)>>DESC_ADJ_SHIFT,
-			&(engine->sgdma_regs->first_desc_adjacent), 0);
+	write_register(get_starting_adj_count(engine, 0), &(engine->sgdma_regs->first_desc_adjacent), 0);
 	
-	{/*disable channel writeback*/
-	u32 channel_control_flags= (XDMA_CTRL_STM_MODE_WB|XDMA_CTRL_IE_DESC_ERROR|XDMA_CTRL_IE_READ_ERROR|XDMA_CTRL_IE_WRITE_ERROR
-					|XDMA_CTRL_IE_INVALID_LENGTH|XDMA_CTRL_IE_MAGIC_STOPPED|XDMA_CTRL_IE_DESC_ALIGN_MISMATCH);
-	if(!engine->streaming && engine->non_incr_addr)
-		channel_control_flags|=XDMA_CTRL_NON_INCR_ADDR;
 	
-	/*supplement with poll mode*/
-	channel_control_flags|= (XDMA_CTRL_IE_DESC_COMPLETED|XDMA_CTRL_IE_DESC_STOPPED);
-	channel_control_flags|= XDMA_CTRL_RUN_STOP;
-	
-	write_register(channel_control_flags, &(engine->regs->control), 0);
+	write_register(XDMA_CTRL_RUN_STOP, &(engine->regs->control_w1s), 0);
 
 								
-	}
 }
 
 static long xdma_wait_for_transfer(struct xdma_engine *engine)
@@ -2005,6 +2018,38 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	u32 last_completed_descriptors=0;
 	unsigned int timeout=(engine->dir==DMA_TO_DEVICE)? h2c_timeout_ms: c2h_timeout_ms;
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
+#ifdef XDMA_POLL_MODE
+	unsigned long jiffies_limit= jiffies + timeout_jiffies;
+	unsigned int descriptors_count= get_starting_adj_count(engine, 0)+1;
+	/*replicates behaviour of wait_for_completion*/
+	while(true)
+	{	
+		u32 poll_wb=engine->poll_mode_wb.virtual_addr->completed_desc_count;
+		u32 current_completed_descriptors=poll_wb & WB_COUNT_MASK;
+		/*return a positive value. xdma_finalise_transfer will deal with it appropriately*/
+		if((current_completed_descriptors >= descriptors_count) || (poll_wb & WB_ERR_MASK))
+		{
+			dbg_tfr("Poll mode readback: %x\n", poll_wb);
+			return 1;
+		}
+		/* return 0 to signify timeout*/
+		if (timeout>0  && time_after_eq(jiffies, jiffies_limit))
+		{
+			if(current_completed_descriptors > last_completed_descriptors)
+			{
+				jiffies_limit= jiffies + timeout_jiffies;//reset timer;
+				last_completed_descriptors=current_completed_descriptors;
+				
+			}
+			else
+				return 0;
+				
+		}
+	/*catch signals*/
+		if(signal_pending(current))
+			return -ERESTARTSYS;
+	} 
+#else/* wait for interrupt with completion*/
 	
 	/*In case of timeout check if some progress has been made, that is descriptors completed.
 	If so return, to wait to allow transfer to proceed*/
@@ -2019,6 +2064,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	dbg_tfr("Wait for completion on engine %s returned %ld\n", engine->name, rv);
 	
 	return rv;
+#endif
 }
 
 static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 num_descriptors)
@@ -2034,9 +2080,9 @@ static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 
 
 static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transfer_result)
 {
-
+#ifndef XDMA_POLL_MODE
 	channel_interrupts_disable(engine->xdev, engine->irq_bitmask);
-	
+#endif
 	if(transfer_result >0)/*interrupt was recieved*/
 	{
 		u32 status=ioread32( &(engine->regs->status_rc));
@@ -2060,7 +2106,7 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 			if(completed_descriptors==0)
 			{
 				transfer_result=-ETIMEDOUT;
-				goto enable_interrupts;
+				goto exit;
 			}
 		}
 		else/*transfer result < 0: signal was recieved*/
@@ -2069,7 +2115,7 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 			if(completed_descriptors==0)
 			{
 				 transfer_result=-EINTR;
-				 goto enable_interrupts;
+				 goto exit;
 			}
 		}
 		
@@ -2077,9 +2123,10 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 		transfer_result=calculate_completed_length(engine, completed_descriptors);
 	}
 	
-	enable_interrupts:
+	exit:
+#ifndef XDMA_POLL_MODE
 	channel_interrupts_enable(engine->xdev, engine->irq_bitmask);
-	
+#endif	
 	return transfer_result;
 }
 static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
@@ -3017,8 +3064,9 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	if (unlikely(rv < 0))
 		goto err_irq_setup;
 
-	/*if (!poll_mode)*/
-		channel_interrupts_enable(xdev, ~0);
+#ifndef XDMA_POLL_MODE
+	channel_interrupts_enable(xdev, xdev->mask_irq_h2c | xdev->mask_irq_c2h);
+#endif
 
 	/* Flush writes */
 	read_interrupts(xdev);
@@ -3182,13 +3230,13 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 	}
 
 	/* re-write the interrupt table */
-	/*if (!poll_mode) */{
-		irq_setup(xdev, pdev);
+#ifndef XDMA_POLL_PODE
+	irq_setup(xdev, pdev);
 
-		channel_interrupts_enable(xdev, ~0);
-		user_interrupts_enable(xdev, xdev->mask_irq_user);
-		read_interrupts(xdev);
-	}
+	channel_interrupts_enable(xdev, xdev->mask_irq_h2c | xdev->mask_irq_c2h);
+	user_interrupts_enable(xdev, xdev->mask_irq_user);
+	read_interrupts(xdev);
+#endif
 
 	clear_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 	pr_info("xdev 0x%p, done.\n", xdev);

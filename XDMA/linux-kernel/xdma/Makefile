@@ -38,7 +38,9 @@ endif
 ifneq ($(c2h_timeout),)
 	EXTRA_CFLAGS += -DXDMA_C2H_TIMEOUT=$(c2h_timeout)
 endif
-
+ifeq ($(POLLING),1)
+	EXTRA_CFLAGS += -DXDMA_POLL_MODE
+endif
 
 #EXTRA_CFLAGS += -DINTERNAL_TESTING
 
