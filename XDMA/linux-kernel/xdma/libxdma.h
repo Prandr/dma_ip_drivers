@@ -611,7 +611,4 @@ void get_perf_stats(struct xdma_engine *engine);
 void engine_addrmode_set(struct xdma_engine *engine, bool set);
 //int engine_service_poll(struct xdma_engine *engine, u32 expected_desc_count);
 
-ssize_t xdma_xfer_aperture(struct xdma_engine *engine, bool write, u64 ep_addr,
-			unsigned int aperture, struct sg_table *sgt,
-			bool dma_mapped, int timeout_ms);
 #endif /* XDMA_LIB_H */

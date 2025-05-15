@@ -51,15 +51,6 @@ struct xdma_performance_ioctl {
 	uint64_t pending_count;
 };
 
-struct xdma_aperture_ioctl {
-	uint64_t ep_addr;
-	unsigned int aperture;
-	unsigned long buffer;
-	unsigned long len;
-	int error;
-	unsigned long done;
-};
-
 
 /* IOCTL codes */
 
@@ -69,7 +60,6 @@ struct xdma_aperture_ioctl {
 #define IOCTL_XDMA_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, int)
 #define IOCTL_XDMA_ADDRMODE_GET _IOR(XDMA_IOC_MAGIC, 5, int)
 #define IOCTL_XDMA_ALIGN_GET    _IOR(XDMA_IOC_MAGIC, 6, int)
-#define IOCTL_XDMA_APERTURE_R   _IOW(XDMA_IOC_MAGIC, 7, struct xdma_aperture_ioctl )
-#define IOCTL_XDMA_APERTURE_W   _IOW(XDMA_IOC_MAGIC, 8, struct xdma_aperture_ioctl )
+#define IOCTL_XDMA_SUBMIT_TRANSFER   _IOWR(XDMA_IOC_MAGIC, 7, struct xdma_transfer_params )
 
 #endif /* _XDMA_IOCALLS_POSIX_H_ */
