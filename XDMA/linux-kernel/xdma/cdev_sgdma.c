@@ -20,16 +20,7 @@
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
 
 #include <linux/types.h>
-#include <asm/cacheflush.h>
-#include <linux/slab.h>
-#include <linux/aio.h>
-#include <linux/sched.h>
-#include <linux/wait.h>
-#include <linux/kthread.h>
 #include <linux/version.h>
-#include <linux/uio.h>
-#include "libxdma_api.h"
-#include "xdma_cdev.h"
 #include "cdev_sgdma.h"
 
 
@@ -374,7 +365,7 @@ static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	default:
 		dbg_perf("Unsupported operation\n");
-		rv = -EINVAL;
+		rv = -ENOTTY;
 		break;
 	}
 

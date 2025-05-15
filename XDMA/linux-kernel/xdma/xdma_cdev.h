@@ -27,6 +27,8 @@
 #include "xdma_mod.h"
 
 #define XDMA_NODE_NAME	"xdma"
+/* Use 'x' as magic number */
+#define XDMA_IOC_MAGIC	'x'
 #define XDMA_MINOR_BASE (0)
 #define XDMA_MINOR_COUNT (255)
 #define MAX_RESOURCE_SIZE   (~((resource_size_t) 0))//max positive value of loff_t

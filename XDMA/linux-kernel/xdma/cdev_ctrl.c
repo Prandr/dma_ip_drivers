@@ -23,7 +23,6 @@
 #include "version.h"
 #include "xdma_cdev.h"
 #include "cdev_ctrl.h"
-#include "libxdma.h"
 /*
  * character device file operations for control bus (through control bridge)
  */

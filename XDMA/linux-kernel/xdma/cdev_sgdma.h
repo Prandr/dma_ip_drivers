@@ -21,20 +21,13 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #include <linux/ioctl.h>
-
+#include "xdma_cdev.h"
 
 #define IOCTL_XDMA_PERF_V1 (1)
 #define XDMA_ADDRMODE_MEMORY (0)
 #define XDMA_ADDRMODE_FIXED (1)
 
 /*
- * S means "Set" through a ptr,
- * T means "Tell" directly with the argument value
- * G means "Get": reply by setting through a pointer
- * Q means "Query": response is on the return value
- * X means "eXchange": switch G and S atomically
- * H means "sHift": switch T and Q atomically
- *
  * _IO(type,nr)		    no arguments
  * _IOR(type,nr,datatype)   read data from driver
  * _IOW(type,nr,datatype)   write data to driver
@@ -70,13 +63,13 @@ struct xdma_aperture_ioctl {
 
 /* IOCTL codes */
 
-#define IOCTL_XDMA_PERF_START   _IOW('q', 1, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_PERF_STOP    _IOW('q', 2, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_PERF_GET     _IOR('q', 3, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_ADDRMODE_SET _IOW('q', 4, int)
-#define IOCTL_XDMA_ADDRMODE_GET _IOR('q', 5, int)
-#define IOCTL_XDMA_ALIGN_GET    _IOR('q', 6, int)
-#define IOCTL_XDMA_APERTURE_R   _IOW('q', 7, struct xdma_aperture_ioctl *)
-#define IOCTL_XDMA_APERTURE_W   _IOW('q', 8, struct xdma_aperture_ioctl *)
+#define IOCTL_XDMA_PERF_START   _IOW(XDMA_IOC_MAGIC, 1, struct xdma_performance_ioctl )
+#define IOCTL_XDMA_PERF_STOP    _IOW(XDMA_IOC_MAGIC, 2, struct xdma_performance_ioctl )
+#define IOCTL_XDMA_PERF_GET     _IOR(XDMA_IOC_MAGIC, 3, struct xdma_performance_ioctl )
+#define IOCTL_XDMA_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, int)
+#define IOCTL_XDMA_ADDRMODE_GET _IOR(XDMA_IOC_MAGIC, 5, int)
+#define IOCTL_XDMA_ALIGN_GET    _IOR(XDMA_IOC_MAGIC, 6, int)
+#define IOCTL_XDMA_APERTURE_R   _IOW(XDMA_IOC_MAGIC, 7, struct xdma_aperture_ioctl )
+#define IOCTL_XDMA_APERTURE_W   _IOW(XDMA_IOC_MAGIC, 8, struct xdma_aperture_ioctl )
 
 #endif /* _XDMA_IOCALLS_POSIX_H_ */

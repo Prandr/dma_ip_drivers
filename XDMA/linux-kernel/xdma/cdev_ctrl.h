@@ -21,20 +21,12 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #include <linux/ioctl.h>
+#include "xdma_cdev.h"
 
-/* Use 'x' as magic number */
-#define XDMA_IOC_MAGIC	'x'
 /* XL OpenCL X->58(ASCII), L->6C(ASCII), O->0 C->C L->6C(ASCII); */
 #define XDMA_XCL_MAGIC 0X586C0C6C
 
 /*
- * S means "Set" through a ptr,
- * T means "Tell" directly with the argument value
- * G means "Get": reply by setting through a pointer
- * Q means "Query": response is on the return value
- * X means "eXchange": switch G and S atomically
- * H means "sHift": switch T and Q atomically
- *
  * _IO(type,nr)		    no arguments
  * _IOR(type,nr,datatype)   read data from driver
  * _IOW(type,nr.datatype)   write data to driver
@@ -80,8 +72,5 @@ struct xdma_ioc_info {
 #define XDMA_IOCOFFLINE		_IO(XDMA_IOC_MAGIC, XDMA_IOC_OFFLINE)
 #define XDMA_IOCONLINE		_IO(XDMA_IOC_MAGIC, XDMA_IOC_ONLINE)
 
-#define IOCTL_XDMA_ADDRMODE_SET	_IOW('q', 4, int)
-#define IOCTL_XDMA_ADDRMODE_GET	_IOR('q', 5, int)
-#define IOCTL_XDMA_ALIGN_GET	_IOR('q', 6, int)
 
 #endif /* _XDMA_IOCALLS_POSIX_H_ */
