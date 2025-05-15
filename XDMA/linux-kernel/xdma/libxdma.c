@@ -1783,16 +1783,13 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		dbg_sg("Descriptor DMA record %u: virtual address %p, DMA address %#016llx\n",
 			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, transfer->adj_desc_blocks[block_num].dma_addr);
 		
-		for(i; processed_sg_entries < sg_nents; ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
+		for(i; (processed_sg_entries < sg_nents) && (i<engine->adj_block_len); ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
 		{
 			current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
 			dma_addr_t desc_start= sg_dma_address(sg_iter);
 			unsigned int desc_length=0;
 			unsigned int desc_length_accum=0;
-			if ( i== engine->adj_block_len)
-				return -EFBIG;
-			
-			
+							
 			dbg_sg("SG entries:\n");
 			/*merge entries that are contiguous in DMA (bus) address space*/
 			while((processed_sg_entries < sg_nents) && ((sg_prev==NULL) || ((sg_dma_address(sg_prev)+sg_dma_len(sg_prev))==sg_dma_address(sg_iter))) )
@@ -1852,6 +1849,14 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 			dump_desc(current_desc);
 					
 			
+		}
+		/*there are still unprocessed sg entries. Transfer doesn't fit into single adjacent block*/
+		if ( processed_sg_entries<sg_nents)
+		{
+			pr_err("Transfer requires more than a single block of %u adjacent descripors."
+			"Splitting into multiple transfer is required, but currently not implemented", 
+			engine->adj_block_len);
+			return -EFBIG;
 		}
 		/*set control flags on the very last descriptor*/
 		current_desc->control|=cpu_to_le32(control_flags);
