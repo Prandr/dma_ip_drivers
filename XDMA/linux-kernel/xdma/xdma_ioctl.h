@@ -25,7 +25,6 @@
 
 
 
-#define XDMA_IOCTL_PERF_V1 (1)
 #define XDMA_ADDRMODE_MEMORY (0)
 #define XDMA_ADDRMODE_FIXED (1)
 
@@ -84,15 +83,10 @@ struct xdma_ioc_info {
 
  /*Operation and structures definitions for XDMA engines*/
 struct xdma_performance_ioctl {
-	/* XDMA_IOCTL_IOCTL_Vx */
-	uint32_t version;
 	uint32_t transfer_size;
 	/* measurement */
-	uint32_t stopped;
-	uint32_t iterations;
 	uint64_t clock_cycle_count;
 	uint64_t data_cycle_count;
-	uint64_t pending_count;
 };
 
 enum xdma_transfer_mode
@@ -106,9 +100,7 @@ struct xdma_transfer_request {
 };
 /* IOCTL codes */
 
-#define XDMA_IOCTL_PERF_START   _IOW(XDMA_IOC_MAGIC, 1, struct xdma_performance_ioctl )
-#define XDMA_IOCTL_PERF_STOP    _IOW(XDMA_IOC_MAGIC, 2, struct xdma_performance_ioctl )
-#define XDMA_IOCTL_PERF_GET     _IOR(XDMA_IOC_MAGIC, 3, struct xdma_performance_ioctl )
+#define XDMA_IOCTL_PERF_TEST   _IOWR(XDMA_IOC_MAGIC, 1, struct xdma_performance_ioctl )
 #define XDMA_IOCTL_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, int)
 #define XDMA_IOCTL_ADDRMODE_GET _IOR(XDMA_IOC_MAGIC, 5, int)
 #define XDMA_IOCTL_ALIGN_GET    _IOR(XDMA_IOC_MAGIC, 6, int)

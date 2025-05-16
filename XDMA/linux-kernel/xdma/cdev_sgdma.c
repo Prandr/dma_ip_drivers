@@ -92,134 +92,44 @@ static ssize_t char_sgdma_read(struct file *filp, char __user *buf,
 
 
 
-static int ioctl_do_perf_start(struct xdma_engine *engine, unsigned long arg)
+static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 {
 
 	int rv;
-	struct xdma_dev *xdev;
-#if 0
+	
 	if (!engine) {
 		pr_err("Invalid DMA engine\n");
 		return -EINVAL;
 	}
 
-	xdev = engine->xdev;
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
 
-	/* performance measurement already running on this engine? */
-	if (engine->xdma_perf) {
-		dbg_perf("XDMA_IOCTL_PERF_START failed!\n");
-		dbg_perf("Perf measurement already seems to be running!\n");
+	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
 		return -EBUSY;
-	}
-	engine->xdma_perf = kzalloc(sizeof(struct xdma_performance_ioctl),
-		GFP_KERNEL);
-
-	if (!engine->xdma_perf)
-		return -ENOMEM;
-
-	rv = copy_from_user(engine->xdma_perf,
+	
+	rv = copy_from_user( &(engine->xdma_perf),
 		(struct xdma_performance_ioctl __user *)arg,
 		sizeof(struct xdma_performance_ioctl));
 
 	if (rv < 0) {
 		dbg_perf("Failed to copy from user space 0x%lx\n", arg);
-		return -EINVAL;
+		goto exit;
 	}
-	if (engine->xdma_perf->version != XDMA_IOCTL_PERF_V1) {
-		dbg_perf("Unsupported IOCTL version %d\n",
-			engine->xdma_perf->version);
-		return -EINVAL;
-	}
-
-	enable_perf(engine);
-	dbg_perf("transfer_size = %d\n", engine->xdma_perf->transfer_size);
-	/* initialize wait queue */
-#if HAS_SWAKE_UP
-	init_swait_queue_head(&engine->xdma_perf_wq);
-#else
-	init_waitqueue_head(&engine->xdma_perf_wq);
-#endif
-	rv = xdma_performance_submit(xdev, engine);
-#endif
+	
+	dbg_perf("transfer_size = %d\n", engine->xdma_perf.transfer_size);
+	rv = xdma_performance_submit(engine);
 	if (rv < 0)
-		pr_err("Failed to submit dma performance\n");
+		goto exit;
+	rv = copy_to_user((void __user *)arg, &(engine->xdma_perf),
+			sizeof(struct xdma_performance_ioctl));
+	if (rv<0) 
+		dbg_perf("Error copying result to user\n");
+	
+	exit:
+	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	return rv;
 }
 
-static int ioctl_do_perf_stop(struct xdma_engine *engine, unsigned long arg)
-{
-	struct xdma_transfer *transfer = NULL;
-	int rv;
-#if 0
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
 
-	dbg_perf("XDMA_IOCTL_PERF_STOP\n");
-
-	/* no performance measurement running on this engine? */
-	if (!engine->xdma_perf) {
-		dbg_perf("No measurement in progress\n");
-		return -EINVAL;
-	}
-
-	/* stop measurement */
-	transfer = engine_cyclic_stop(engine);
-	if (!transfer) {
-		pr_err("Failed to stop cyclic transfer\n");
-		return -EINVAL;
-	}
-	dbg_perf("Waiting for measurement to stop\n");
-
-	get_perf_stats(engine);
-
-	rv = copy_to_user((void __user *)arg, engine->xdma_perf,
-			sizeof(struct xdma_performance_ioctl));
-	if (rv) {
-		dbg_perf("Error copying result to user\n");
-		return rv;
-	}
-
-	kfree(transfer);
-
-	kfree(engine->xdma_perf);
-	engine->xdma_perf = NULL;
-#endif
-	return 0;
-}
-
-static int ioctl_do_perf_get(struct xdma_engine *engine, unsigned long arg)
-{
-	int rc;
-#if 0
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
-
-	dbg_perf("XDMA_IOCTL_PERF_GET\n");
-
-	if (engine->xdma_perf) {
-		get_perf_stats(engine);
-
-		rc = copy_to_user((void __user *)arg, engine->xdma_perf,
-			sizeof(struct xdma_performance_ioctl));
-		if (rc) {
-			dbg_perf("Error copying result to user\n");
-			return rc;
-		}
-	} else {
-		dbg_perf("engine->xdma_perf == NULL?\n");
-		return -EPROTO;
-	}
-#endif
-	return 0;
-}
 
 static int ioctl_do_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 {
@@ -341,14 +251,8 @@ static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 	engine = xcdev->engine;
 
 	switch (cmd) {
-	case XDMA_IOCTL_PERF_START:
-		rv = ioctl_do_perf_start(engine, arg);
-		break;
-	case XDMA_IOCTL_PERF_STOP:
-		rv = ioctl_do_perf_stop(engine, arg);
-		break;
-	case XDMA_IOCTL_PERF_GET:
-		rv = ioctl_do_perf_get(engine, arg);
+	case XDMA_IOCTL_PERF_TEST:
+		rv = ioctl_do_perf_test(engine, arg);
 		break;
 	case XDMA_IOCTL_ADDRMODE_SET:
 		rv = ioctl_do_addrmode_set(engine, arg);

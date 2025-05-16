@@ -33,7 +33,7 @@
 #include <linux/pci.h>
 #include <linux/completion.h>
 #include <linux/atomic.h>
-
+#include "xdma_ioctl.h"
 
 /* SECTION: Preprocessor macros/constants */
 #define XDMA_BAR_NUM (6)
@@ -339,8 +339,6 @@ struct engine_regs {
 	u32 perf_cyc_hi;
 	u32 perf_dat_lo;
 	u32 perf_dat_hi;
-	u32 perf_pnd_lo;
-	u32 perf_pnd_hi;
 } __packed;
 
 struct engine_sgdma_regs {
@@ -508,30 +506,17 @@ struct xdma_engine {
 	/* only used for MSIX mode to store per-engine interrupt mask value */
 	u32 interrupt_enable_mask_value;
 
-	/* Transfer list management */
-#if 0
-	/* Members applicable to AXI-ST C2H (cyclic) transfers */
-	struct xdma_result *cyclic_result;
-	dma_addr_t cyclic_result_bus;	/* bus addr for transfer */
-	u8 *perf_buf_virt;
-	dma_addr_t perf_buf_bus; /* bus address */
-#endif
-	/* Members associated with polled mode support */
 #ifdef XDMA_POLL_MODE
+	/* Members associated with polled mode support */
 	generic_dma_record(volatile struct xdma_poll_wb) poll_mode_wb;
 #endif
 
 	/* Members associated with interrupt mode support */
-
-	//spinlock_t lock;		/* protects concurrent access */
 	int msix_irq_line;		/* MSI-X vector for this engine */
 	u32 irq_bitmask;		/* IRQ bit mask for this engine */
 
-	//struct mutex desc_lock;		/* protects concurrent access */
-	
-
 	/* for performance test support */
-	//struct xdma_performance_ioctl *xdma_perf;	/* perf test control */
+	struct xdma_performance_ioctl xdma_perf;	/* perf test control */
 };
 
 struct xdma_user_irq {
@@ -605,7 +590,7 @@ struct xdma_dev *xdev_find_by_pdev(struct pci_dev *pdev);
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
 ssize_t xdma_xfer_submit(struct xdma_engine *engine);
-int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine);
+int xdma_performance_submit(struct xdma_engine *engine);
 struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine);
 void enable_perf(struct xdma_engine *engine);
 void get_perf_stats(struct xdma_engine *engine);
