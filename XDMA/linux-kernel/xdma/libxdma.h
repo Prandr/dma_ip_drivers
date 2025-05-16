@@ -447,7 +447,9 @@ struct xdma_transfer_params {
 	char __user *buf;
 	size_t length; 
 	loff_t ep_addr;
+#ifdef __LIBXDMA_DEBUG__
 	enum dma_data_direction dir;
+#endif
 };
 
 #define XFER_FLAG_PAGES_ALLOC (1UL<<0)

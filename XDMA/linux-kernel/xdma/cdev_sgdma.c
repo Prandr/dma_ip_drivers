@@ -61,9 +61,10 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 	engine->transfer_params.length=count;
 	if(!engine->streaming)
 		engine->transfer_params.ep_addr=*pos;
+#ifdef ___LIBXDMA_DEBUG__
 	/*doesn't really matter in this case. setup is performed according engine direction*/
 	engine->transfer_params.dir=engine->dir;
-
+#endif
 	rv = xdma_xfer_submit(engine);
 	
 	if(!engine->streaming && !engine->non_incr_addr &&(rv>0))
@@ -298,8 +299,9 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 	rv=__get_user( engine->transfer_params.ep_addr, &(user_transfer_request->ep_addr));
 	if (unlikely(rv<0))
 			goto exit;
-	
+#ifdef ___LIBXDMA_DEBUG__
 	engine->transfer_params.dir= (transfer_mode==XDMA_WRITE) ? DMA_TO_DEVICE: DMA_FROM_DEVICE;
+#endif
 	transfer_res=xdma_xfer_submit(engine);
 	
 	if(transfer_res<0)
