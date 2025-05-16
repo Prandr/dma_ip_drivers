@@ -67,12 +67,13 @@ modules_install: all
 	@mkdir -p -m 755 $(MODLIB)/xdma
 	@install -v -m 644 *.ko $(MODLIB)/xdma
 	@$(DEPMOD) -a || true
+	@install -v -m 644 xdma_ioctl.h /usr/local/include
 
 uninstall:
 	@echo "Un-installing $(MODLIB)/xdma ..."
 	@/bin/rm -rf $(MODLIB)/xdma
 	@$(DEPMOD) -a || true
-
+	@/bin/rm -f /usr/local/include/xdma_ioctl.h
 
 
 

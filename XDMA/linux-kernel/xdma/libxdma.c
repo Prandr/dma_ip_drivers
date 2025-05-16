@@ -28,7 +28,6 @@
 #include <linux/vmalloc.h>
 
 #include "libxdma.h"
-#include "cdev_sgdma.h"
 #include "xdma_cdev.h"
 
 
@@ -310,7 +309,7 @@ void enable_perf(struct xdma_engine *engine)
 			       (unsigned long)(&engine->regs));
 	read_register(&engine->regs->identifier);
 
-	dbg_perf("IOCTL_XDMA_PERF_START\n");
+	dbg_perf("XDMA_IOCTL_PERF_START\n");
 }
 
 void get_perf_stats(struct xdma_engine *engine)
@@ -3013,7 +3012,7 @@ int xdma_user_isr_disable(void *dev_hndl, unsigned int mask)
 void engine_addrmode_set(struct xdma_engine *engine, bool set)
 {
 	u32 w = XDMA_CTRL_NON_INCR_ADDR;
-	dbg_perf("IOCTL_XDMA_ADDRMODE_SET\n");
+	dbg_perf("XDMA_IOCTL_ADDRMODE_SET\n");
 	if(engine->non_incr_addr!=set)
 	{	
 		engine->non_incr_addr = set;

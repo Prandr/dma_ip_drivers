@@ -22,7 +22,7 @@
 #include <linux/ioctl.h>
 #include "version.h"
 #include "xdma_cdev.h"
-#include "cdev_ctrl.h"
+#include "xdma_ioctl.h"
 /*
  * character device file operations for control bus (through control bridge)
  */

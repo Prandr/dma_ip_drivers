@@ -21,7 +21,9 @@
 
 #include <linux/types.h>
 #include <linux/version.h>
-#include "cdev_sgdma.h"
+#include "xdma_cdev.h"
+#include "xdma_ioctl.h"
+
 
 
 
@@ -108,7 +110,7 @@ static int ioctl_do_perf_start(struct xdma_engine *engine, unsigned long arg)
 
 	/* performance measurement already running on this engine? */
 	if (engine->xdma_perf) {
-		dbg_perf("IOCTL_XDMA_PERF_START failed!\n");
+		dbg_perf("XDMA_IOCTL_PERF_START failed!\n");
 		dbg_perf("Perf measurement already seems to be running!\n");
 		return -EBUSY;
 	}
@@ -126,7 +128,7 @@ static int ioctl_do_perf_start(struct xdma_engine *engine, unsigned long arg)
 		dbg_perf("Failed to copy from user space 0x%lx\n", arg);
 		return -EINVAL;
 	}
-	if (engine->xdma_perf->version != IOCTL_XDMA_PERF_V1) {
+	if (engine->xdma_perf->version != XDMA_IOCTL_PERF_V1) {
 		dbg_perf("Unsupported IOCTL version %d\n",
 			engine->xdma_perf->version);
 		return -EINVAL;
@@ -157,7 +159,7 @@ static int ioctl_do_perf_stop(struct xdma_engine *engine, unsigned long arg)
 		return -EINVAL;
 	}
 
-	dbg_perf("IOCTL_XDMA_PERF_STOP\n");
+	dbg_perf("XDMA_IOCTL_PERF_STOP\n");
 
 	/* no performance measurement running on this engine? */
 	if (!engine->xdma_perf) {
@@ -199,7 +201,7 @@ static int ioctl_do_perf_get(struct xdma_engine *engine, unsigned long arg)
 		return -EINVAL;
 	}
 
-	dbg_perf("IOCTL_XDMA_PERF_GET\n");
+	dbg_perf("XDMA_IOCTL_PERF_GET\n");
 
 	if (engine->xdma_perf) {
 		get_perf_stats(engine);
@@ -240,7 +242,7 @@ static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
 	}
 	src = !!engine->non_incr_addr;
 
-	dbg_perf("IOCTL_XDMA_ADDRMODE_GET\n");
+	dbg_perf("XDMA_IOCTL_ADDRMODE_GET\n");
 	rv = put_user(src, (int __user *)arg);
 
 	return rv;
@@ -253,49 +255,70 @@ static int ioctl_do_align_get(struct xdma_engine *engine, unsigned long arg)
 		return -EINVAL;
 	}
 
-	dbg_perf("IOCTL_XDMA_ALIGN_GET\n");
+	dbg_perf("XDMA_IOCTL_ALIGN_GET\n");
 	return put_user(engine->addr_align, (int __user *)arg);
 }
 
 
 static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long arg)
 {
-	struct xdma_transfer_params __user *user_transfer_params=(struct xdma_transfer_params __user *) arg;
+	struct xdma_transfer_request __user *user_transfer_request=(struct xdma_transfer_request __user *) arg;
 	ssize_t transfer_res;
-	int rv=access_assert(user_transfer_params, sizeof(struct xdma_transfer_params));
+	enum xdma_transfer_mode transfer_mode;
+	int rv=access_assert(user_transfer_request, sizeof(struct xdma_transfer_request));
 	if (unlikely(rv<0))
 		return rv;
-	rv=access_assert(user_transfer_params->buf, user_transfer_params->length);
+	
+	rv=__get_user(transfer_mode, &(user_transfer_request->mode));
 	if (unlikely(rv<0))
 		return rv;
 	/*to verify user intention, otherwise not really necessary*/
-	if(user_transfer_params->dir!= engine->dir)
-			return -ENOTSUPP;
-			
+	if(!((transfer_mode==XDMA_WRITE)&& (engine->dir==DMA_TO_DEVICE)) && 
+		!((transfer_mode==XDMA_READ) && (engine->dir==DMA_FROM_DEVICE)))
+	{
+		pr_err("Improper XDMA transfer mode\n");
+		return -ENOTSUPP;
+	}		
 	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
 		return -EBUSY;					
 	/*we already checked the access*/
-	rv=raw_copy_from_user( &(engine->transfer_params), user_transfer_params, sizeof(struct xdma_transfer_params));
+	rv=__get_user( engine->transfer_params.buf, &(user_transfer_request->buf));
+	if (unlikely(rv<0))
+			goto exit;
+		rv=__get_user( engine->transfer_params.length, &(user_transfer_request->length));
+	if (unlikely(rv<0))
+			goto exit;
+	rv=access_assert(engine->transfer_params.buf, engine->transfer_params.length);
 	if (unlikely(rv<0))
 	{
-		clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
-		return -EFAULT;
-	}
+		engine->transfer_params.buf=NULL;
+		engine->transfer_params.length=0;
+		goto exit;
+	}	
+	rv=__get_user( engine->transfer_params.ep_addr, &(user_transfer_request->ep_addr));
+	if (unlikely(rv<0))
+			goto exit;
+	
+	engine->transfer_params.dir= (transfer_mode==XDMA_WRITE) ? DMA_TO_DEVICE: DMA_FROM_DEVICE;
 	transfer_res=xdma_xfer_submit(engine);
+	
 	if(transfer_res<0)
 	{
-		rv=__put_user( 0, &(user_transfer_params->length));
+		rv=__put_user( 0, &(user_transfer_request->length));
 		if (unlikely(rv<0))
-			return rv;
+			goto exit;
 		rv= (int) transfer_res;
 	}
 	else
 	{
-		rv=__put_user(transfer_res, &(user_transfer_params->length));
+		rv=__put_user(transfer_res, &(user_transfer_request->length));
 		if (unlikely(rv<0))
-			return rv;
+			goto exit;
 		rv=0;
 	}
+	
+	exit:
+	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	return rv;	
 }
 	
@@ -316,25 +339,25 @@ static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 	engine = xcdev->engine;
 
 	switch (cmd) {
-	case IOCTL_XDMA_PERF_START:
+	case XDMA_IOCTL_PERF_START:
 		rv = ioctl_do_perf_start(engine, arg);
 		break;
-	case IOCTL_XDMA_PERF_STOP:
+	case XDMA_IOCTL_PERF_STOP:
 		rv = ioctl_do_perf_stop(engine, arg);
 		break;
-	case IOCTL_XDMA_PERF_GET:
+	case XDMA_IOCTL_PERF_GET:
 		rv = ioctl_do_perf_get(engine, arg);
 		break;
-	case IOCTL_XDMA_ADDRMODE_SET:
+	case XDMA_IOCTL_ADDRMODE_SET:
 		rv = ioctl_do_addrmode_set(engine, arg);
 		break;
-	case IOCTL_XDMA_ADDRMODE_GET:
+	case XDMA_IOCTL_ADDRMODE_GET:
 		rv = ioctl_do_addrmode_get(engine, arg);
 		break;
-	case IOCTL_XDMA_ALIGN_GET:
+	case XDMA_IOCTL_ALIGN_GET:
 		rv = ioctl_do_align_get(engine, arg);
 		break;
-	case IOCTL_XDMA_SUBMIT_TRANSFER:
+	case XDMA_IOCTL_SUBMIT_TRANSFER:
 		rv = ioctl_do_submit_transfer(engine, arg);
 		break;
 	default:

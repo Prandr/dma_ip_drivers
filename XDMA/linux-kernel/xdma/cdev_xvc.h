@@ -27,7 +27,7 @@
  */
 #define XVC_BAR_OFFSET_DFLT	0x40000	/* DSA 4.0 */
 
-#define XVC_MAGIC 'V'  
+#define XVC_MAGIC 0x44  /*'D'*/
 
 struct xvc_ioc {
 	unsigned int opcode;

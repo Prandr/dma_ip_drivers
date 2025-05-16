@@ -457,7 +457,7 @@ struct xdma_transfer_params {
 #define XFER_FLAG_DMA_RECORD_ALLOC (1UL<<4)
 #define XFER_FLAG_DESC_DMA_ALLOC (1UL<<5)
 
-/* holds data necessary to perform a trasfer*/
+/* holds data necessary to perform a transfer*/
 struct xdma_transfer {
 	struct page **pages;
 	unsigned int num_pages;
