@@ -256,10 +256,10 @@ loff_t char_llseek(struct file *filp, loff_t off, int whence)
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)(filp->private_data);
 	struct xdma_dev *xdev = xcdev->xdev;
 	loff_t newpos = 0;
-	//XDMA Address space is unlimited, while other interfaces are limited by their BAR sizes
-	//FIXME: find (or create) reliable method to differentiate  between interfaces
-	resource_size_t maxpos = (xcdev->bar==xdev->config_bar_idx)? MAX_RESOURCE_SIZE: xdev->bar_size[xcdev->bar];
-	dbg_fops("off=%lld, maxpos=%lld, whence=%i, xcdev_bar=%i, config bar=%i", off, maxpos, whence, xcdev->bar, xdev->config_bar_idx);
+	/*XDMA Address space is unlimited, while other interfaces are limited by their BAR sizes*/
+	resource_size_t maxpos = ((xcdev->type==CHAR_XDMA_H2C)||(xcdev->type==CHAR_XDMA_C2H))? 
+						MAX_RESOURCE_SIZE: xdev->bar_size[xcdev->bar];
+	dbg_fops("off=%llx (%lld), maxpos=%llx, whence=%i", off, off, maxpos, whence);
 	switch (whence) {
 	case 0: /* SEEK_SET */
 		newpos = off;
@@ -279,11 +279,6 @@ loff_t char_llseek(struct file *filp, loff_t off, int whence)
 		return -EINVAL;
 	filp->f_pos = newpos;
 	dbg_fops("%s: pos=%lld\n", __func__, (signed long long)newpos);
-
-#if 0
-	pr_err("0x%p, off %lld, whence %d -> pos %lld.\n",
-		filp, (signed long long)off, whence, (signed long long)off);
-#endif
 
 	return newpos;
 }
