@@ -133,25 +133,27 @@ static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 
 static int ioctl_do_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 {
-	int set;
+	bool set;
 	int rv = get_user(set, (int __user *) arg);
 	if(unlikely(rv<0))
 		return rv;
-
-	engine_addrmode_set(engine, !!set);
+	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
+		return -EBUSY;
+	engine_addrmode_set(engine, set);
+	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	return 0;
 }
 
 static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
 {
 	int rv;
-	unsigned long src;
+	bool src;
 
 	if (!engine) {
 		pr_err("Invalid DMA engine\n");
 		return -EINVAL;
 	}
-	src = !!engine->non_incr_addr;
+	src = (bool) engine->non_incr_addr;
 
 	dbg_perf("XDMA_IOCTL_ADDRMODE_GET\n");
 	rv = put_user(src, (int __user *)arg);
@@ -184,8 +186,8 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 	if (unlikely(rv<0))
 		return rv;
 	/*to verify user intention, otherwise not really necessary*/
-	if(!((transfer_mode==XDMA_WRITE)&& (engine->dir==DMA_TO_DEVICE)) && 
-		!((transfer_mode==XDMA_READ) && (engine->dir==DMA_FROM_DEVICE)))
+	if(!((transfer_mode==XDMA_H2C)&& (engine->dir==DMA_TO_DEVICE)) && 
+		!((transfer_mode==XDMA_C2H) && (engine->dir==DMA_FROM_DEVICE)))
 	{
 		pr_err("Improper XDMA transfer mode\n");
 		return -ENOTSUPP;
@@ -205,12 +207,15 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 		engine->transfer_params.buf=NULL;
 		engine->transfer_params.length=0;
 		goto exit;
-	}	
-	rv=__get_user( engine->transfer_params.ep_addr, &(user_transfer_request->ep_addr));
-	if (unlikely(rv<0))
-			goto exit;
+	}
+	if(!engine->streaming)
+	{
+		rv=__get_user( engine->transfer_params.ep_addr, &(user_transfer_request->axi_address));
+		if (unlikely(rv<0))
+				goto exit;
+	}
 #ifdef ___LIBXDMA_DEBUG__
-	engine->transfer_params.dir= (transfer_mode==XDMA_WRITE) ? DMA_TO_DEVICE: DMA_FROM_DEVICE;
+	engine->transfer_params.dir= (transfer_mode==XDMA_H2C) ? DMA_TO_DEVICE: DMA_FROM_DEVICE;
 #endif
 	transfer_res=xdma_xfer_submit(engine);
 	

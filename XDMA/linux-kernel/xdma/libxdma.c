@@ -2189,7 +2189,7 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 
 int xdma_performance_submit(struct xdma_engine *engine)
 {
-	u64 ep_addr = 0;
+	u64 ep_addr = engine->streaming? : engine->xdma_perf.axi_address;
 	int i=0;
 	int rv = 0;
 	struct xdma_desc *current_desc;

@@ -82,28 +82,55 @@ struct xdma_ioc_info {
 #define XDMA_IOCONLINE		_IO(XDMA_IOC_MAGIC, XDMA_IOC_ONLINE)
 
  /*Operation and structures definitions for XDMA engines*/
+ 
+/*Structure for performance test 
+(XDMA_IOCTL_PERF_TEST ioctl operation)*/
 struct xdma_performance_ioctl {
+/*Length of the transfer for the performance test.
+Typically up to 64 MB and must be multiple of datapath width.*/
 	uint32_t transfer_size;
+	/*for MM AXI: AXI address to or from which  the transfer
+	willl be directed. Ignored for AXI-Stream interface.
+	Must be capable to produce or sink transfer_size amount of
+	data*/
+	off_t axi_address;
 	/* measurement */
 	uint64_t clock_cycle_count;
 	uint64_t data_cycle_count;
 };
 
-enum xdma_transfer_mode
-{XDMA_READ, XDMA_WRITE };
 
+
+
+/*Type (direction) of XDMA operation*/
+enum xdma_transfer_mode
+{XDMA_H2C, XDMA_C2H };
+/*Structure for submitting the transfer request
+(XDMA_IOCTL_SUBMIT_TRANSFER ioctl operation */
 struct xdma_transfer_request {
+/*Pointer to buffer in user space*/
 	char *buf;
-	size_t length; 
-	off_t ep_addr;
+/*Size of the buffer == Length of the transfer
+After the transfer it holds minimal amount of 
+transmitted data*/ 
+	size_t length;
+/*AXI address from which or to which transfer the data.
+Ignored for AXI Stream interface*/
+	off_t axi_address;
+/*Direction of the transfer*/
 	enum xdma_transfer_mode mode;
 };
 /* IOCTL codes */
-
+/*Do performance measurement test*/
 #define XDMA_IOCTL_PERF_TEST   _IOWR(XDMA_IOC_MAGIC, 1, struct xdma_performance_ioctl )
-#define XDMA_IOCTL_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, int)
-#define XDMA_IOCTL_ADDRMODE_GET _IOR(XDMA_IOC_MAGIC, 5, int)
+/*Switch between usual (incrementing) address mode [false] and 
+fixed (non-incrementing) [true]*/
+#define XDMA_IOCTL_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, bool)
+/*Retrieve currently set address mode*/
+#define XDMA_IOCTL_ADDRMODE_GET _IOR(XDMA_IOC_MAGIC, 5, bool)
+/*Return value of address alignment configuration*/
 #define XDMA_IOCTL_ALIGN_GET    _IOR(XDMA_IOC_MAGIC, 6, int)
+/*Transfer request operation*/
 #define XDMA_IOCTL_SUBMIT_TRANSFER   _IOWR(XDMA_IOC_MAGIC, 7, struct xdma_transfer_request )
 
 #endif /* _XDMA_IOCALLS_POSIX_H_ */
