@@ -586,7 +586,10 @@ void write_register(u32 value, void *iomem);
 u32 read_register(void *iomem);
 
 struct xdma_dev *xdev_find_by_pdev(struct pci_dev *pdev);
-
+void xdma_device_close(struct pci_dev *pdev, void *dev_hndl);
+void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
+		       int *h2c_channel_num, int *c2h_channel_num);
+int xdma_user_isr_enable(void *dev_hndl, unsigned int mask);
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
 ssize_t xdma_xfer_submit(struct xdma_engine *engine);
@@ -596,6 +599,5 @@ void enable_perf(struct xdma_engine *engine);
 void get_perf_stats(struct xdma_engine *engine);
 
 void engine_addrmode_set(struct xdma_engine *engine, bool set);
-//int engine_service_poll(struct xdma_engine *engine, u32 expected_desc_count);
 
 #endif /* XDMA_LIB_H */

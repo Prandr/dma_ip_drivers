@@ -18,7 +18,6 @@
  */
 #define pr_fmt(fmt)	KBUILD_MODNAME ":%s: " fmt, __func__
 
-#include "libxdma_api.h"
 #include "xdma_cdev.h"
 
 #define write_register(v, mem, off) iowrite32(v, mem)

@@ -24,7 +24,6 @@
 #include <linux/errno.h>
 #include <linux/aer.h>
 /* include early, to verify it depends only on the headers above */
-#include "libxdma_api.h"
 #include "libxdma.h"
 #include "xdma_mod.h"
 #include "xdma_cdev.h"
