@@ -1973,7 +1973,7 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 
 /*retrieve first adjacent count from an adjacent block. can be used for setting up transfer as well
 as to figure out the number of descriptors in the block */
-static u32 get_starting_adj_count(struct xdma_engine *engine, unsigned int adj_block_num)
+static inline u32 get_initial_adj_count(struct xdma_engine *engine, unsigned int adj_block_num)
 {
 	return (le32_to_cpu(engine->transfer.adj_desc_blocks[adj_block_num].virtual_addr[0].control) & DESC_ADJ_MASK)>>DESC_ADJ_SHIFT;
 }
@@ -1991,7 +1991,7 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 #endif
 	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
 	write_register((u32) (first_desc_addr>>32), &(engine->sgdma_regs->first_desc_hi), 0);
-	write_register(get_starting_adj_count(engine, 0), &(engine->sgdma_regs->first_desc_adjacent), 0);
+	write_register(get_initial_adj_count(engine, 0), &(engine->sgdma_regs->first_desc_adjacent), 0);
 	
 	
 	write_register(XDMA_CTRL_RUN_STOP, &(engine->regs->control_w1s), 0);
@@ -2007,7 +2007,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
 #ifdef XDMA_POLL_MODE
 	unsigned long jiffies_limit= jiffies + timeout_jiffies;
-	unsigned int descriptors_count= get_starting_adj_count(engine, 0)+1;
+	unsigned int descriptors_count= get_initial_adj_count(engine, 0)+1;
 	/*replicates behaviour of wait_for_completion*/
 	while(true)
 	{	
