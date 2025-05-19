@@ -87,8 +87,8 @@ static int config_kobject(struct xdma_cdev *xcdev, enum cdev_type type)
 	switch (type) {
 	case CHAR_XDMA_H2C:
 	case CHAR_XDMA_C2H:
-	case CHAR_BYPASS_H2C:
-	case CHAR_BYPASS_C2H:
+	/*case CHAR_BYPASS_H2C:
+	case CHAR_BYPASS_C2H:*/
 		if (!engine) {
 			pr_err("Invalid DMA engine\n");
 			return rv;
@@ -445,14 +445,14 @@ static int create_xcdev(struct xdma_pci_dev *xpdev, struct xdma_cdev *xcdev,
 		minor = 10 + bar;
 		cdev_event_init(xcdev);
 		break;
-	case CHAR_BYPASS_H2C:
+	/*case CHAR_BYPASS_H2C:
 		minor = 64 + engine->channel;
 		cdev_bypass_init(xcdev);
 		break;
 	case CHAR_BYPASS_C2H:
 		minor = 68 + engine->channel;
 		cdev_bypass_init(xcdev);
-		break;
+		break;*/
 	case CHAR_BYPASS:
 		minor = 100;
 		cdev_bypass_init(xcdev);
@@ -547,6 +547,7 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 	}
 
 	if (xpdev_flag_test(xpdev, XDF_CDEV_BYPASS)) {
+#if 0
 		/* iterate over channels */
 		for (i = 0; i < xpdev->h2c_channel_num; i++) {
 			/* remove DMA Bypass character device */
@@ -561,6 +562,7 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 				pr_err("Failed to destroy bypass c2h %d error 0x%x\n",
 					i, rv);
 		}
+#endif
 		rv = destroy_xcdev(&xpdev->bypass_cdev_base);
 		if (rv < 0)
 			pr_err("Failed to destroy base cdev\n");
@@ -631,6 +633,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 
 	/* Initialize Bypass Character Device */
 	if (xdev->bypass_bar_idx > 0) {
+#if 0
 		for (i = 0; i < xpdev->h2c_channel_num; i++) {
 			engine = &xdev->engine_h2c[i];
 
@@ -660,7 +663,7 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 				goto fail;
 			}
 		}
-
+#endif
 		rv = create_xcdev(xpdev, &xpdev->bypass_cdev_base,
 				xdev->bypass_bar_idx, NULL, CHAR_BYPASS);
 		if (rv < 0) {
