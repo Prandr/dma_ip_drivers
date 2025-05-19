@@ -1999,6 +1999,8 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 								
 }
 
+/*In case of timeout the function checks, if some progress has been made, that means descriptors were completed.
+	If so wait longer for a timeout period to allow transfer to proceed*/
 static long xdma_wait_for_transfer(struct xdma_engine *engine)
 {
 	long rv;
@@ -2007,9 +2009,9 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
 #ifdef XDMA_POLL_MODE
 	unsigned long jiffies_limit= jiffies + timeout_jiffies;
-	unsigned int descriptors_count= get_initial_adj_count(engine, 0)+1;
-	/*replicates behaviour of wait_for_completion*/
-	while(true)
+	unsigned int descriptors_count= get_initial_adj_count(engine, 0)+1;/*this gives the number of descriptors in an adjacent block*/
+	/*replicates behaviour of wait_for_completion for unified handling of transfer result*/
+	do
 	{	
 		u32 poll_wb=engine->poll_mode_wb.virtual_addr->completed_desc_count;
 		u32 current_completed_descriptors=poll_wb & WB_COUNT_MASK;
@@ -2033,13 +2035,12 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 				
 		}
 	/*catch signals*/
-		if(signal_pending(current))
-			return -ERESTARTSYS;
-	} 
+	} while(!signal_pending(current));
+	/*like wait for completion*/
+	return -ERESTARTSYS;
+	
 #else/* wait for interrupt with completion*/
 	
-	/*In case of timeout check if some progress has been made, that is descriptors completed.
-	If so return, to wait to allow transfer to proceed*/
 	while((rv=wait_for_completion_interruptible_timeout( &(engine->engine_compl), timeout_jiffies))==0)
 	{
 		u32 current_completed_descriptors=ioread32( &(engine->regs->completed_desc_count));
