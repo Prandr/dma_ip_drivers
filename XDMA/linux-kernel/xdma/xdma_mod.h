@@ -58,13 +58,27 @@ extern unsigned int desc_blen_max;
 extern unsigned int h2c_timeout_ms;
 extern unsigned int c2h_timeout_ms;
 
+
+enum cdev_type {
+	CHAR_USER,
+	CHAR_CTRL,
+	CHAR_XVC,
+	CHAR_EVENTS,
+	CHAR_XDMA_H2C,
+	CHAR_XDMA_C2H,
+	CHAR_BYPASS_H2C,
+	CHAR_BYPASS_C2H,
+	CHAR_BYPASS,
+};
+
 struct xdma_cdev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct xdma_pci_dev *xpdev;
 	struct xdma_dev *xdev;
 	dev_t cdevno;			/* character device major:minor */
 	struct cdev cdev;		/* character device embedded struct */
-	int bar;			/* PCIe BAR for HW access, if needed */
+	enum cdev_type type;
+	int bar;			/* PCIe BAR for HW access, if needed, or xdma channel namber */
 	unsigned long base;		/* bar access offset */
 	struct xdma_engine *engine;	/* engine instance, if needed */
 	struct xdma_user_irq *user_irq;	/* IRQ value, if needed */
