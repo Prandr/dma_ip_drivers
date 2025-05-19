@@ -1737,11 +1737,9 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	/*dbg_sg("%u adjacent descriptor blocks are required for transfer on engine %s\n",
 		 transfer->num_adj_blocks, engine->name);*/
 		 
-	/*Dynamically allocated as an array as a provision for possible future splitting into multiple transfers.
-	Implicit __GFP_NORETRY. the allocations are typically small,
-	if it fails we are probably close to be OOM anyway, so no point to try harder*/
-	transfer->adj_desc_blocks=kvcalloc(transfer->num_adj_blocks, 
-		sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL);
+	/*Dynamically allocated as an array as a provision for possible future splitting into multiple transfers.*/
+	transfer->adj_desc_blocks=kmalloc_array(transfer->num_adj_blocks, 
+		sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL|__GFP_NORETRY|__GFP_ZERO);
 	if(unlikely(transfer->adj_desc_blocks==NULL))
 	{
 		dbg_sg("Failed to allocate memory for descriptor DMA records on engine %s.\n", engine->name);
@@ -1842,7 +1840,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		if ( processed_sg_entries<sg_nents)
 		{
 			pr_err("Transfer requires more than a single block of %u adjacent descripors."
-			"Splitting into multiple transfer is required, but currently not implemented", 
+			"Splitting into multiple transfers is required, but currently not implemented", 
 			engine->adj_block_len);
 			return -EFBIG;
 		}
@@ -2132,7 +2130,7 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 	}
 	
 	if(transfer->cleanup_flags & XFER_FLAG_DMA_RECORD_ALLOC)
-		kvfree(transfer->adj_desc_blocks);
+		kfree(transfer->adj_desc_blocks);
 	
 	if(transfer->cleanup_flags & XFER_FLAG_SGTABLE_MAPPED)
 		dma_unmap_sgtable(&(engine->xdev->pdev->dev), &(transfer->sgt), engine->dir, 0);
