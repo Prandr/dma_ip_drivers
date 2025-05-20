@@ -19,171 +19,126 @@
 #define pr_fmt(fmt)	KBUILD_MODNAME ":%s: " fmt, __func__
 
 #include "xdma_cdev.h"
-
+ 
 #define write_register(v, mem, off) iowrite32(v, mem)
 
-static int copy_desc_data(struct xdma_transfer *transfer, char __user *buf,
-		size_t *buf_offset, size_t buf_size)
-{
-	int i;
-	int copy_err;
-	int rc = 0;
-#if 0
-	if (!buf) {
-		pr_err("Invalid user buffer\n");
-		return -EINVAL;
-	}
 
-	if (!buf_offset) {
-		pr_err("Invalid user buffer offset\n");
-		return -EINVAL;
-	}
+/*Use 64-bit IO if available, otherwise 32 bit*/
+#ifdef CONFIG_64BIT
+typedef u64 iotype;
+#define write_func(val, addr) writeq(val, addr)
+#define read_func(addr) readq(addr)
+#define USING64 true
 
-	/* Fill user buffer with descriptor data */
-	for (i = 0; i < transfer->desc_num; i++) {
-		if (*buf_offset + sizeof(struct xdma_desc) <= buf_size) {
-			copy_err = copy_to_user(&buf[*buf_offset],
-				transfer->desc_virt + i,
-				sizeof(struct xdma_desc));
-
-			if (copy_err) {
-				dbg_sg("Copy to user buffer failed\n");
-				*buf_offset = buf_size;
-				rc = -EINVAL;
-			} else {
-				*buf_offset += sizeof(struct xdma_desc);
-			}
-		} else {
-			rc = -ENOMEM;
-		}
-	}
+#else
+typedef u32 iotype;
+#define write_func(val, addr) iowrite32(val, addr)
+#define read_func(addr) ioread32(addr)
+#define USING64 false
 #endif
-	return rc;
-}
+
+
 
 static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *pos)
 {
 	struct xdma_dev *xdev;
-	struct xdma_engine *engine;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
-	struct xdma_transfer *transfer;
-	struct list_head *idx;
-	size_t buf_offset = 0;
 	int rc = 0;
-#if 0
-	rc = xcdev_check(__func__, xcdev, 1);
-	if (rc < 0)
+	iotype __iomem *ep_addr;
+	iotype __user *user_buf;
+	u8 __iomem *ep_addr_8;
+	size_t i;
+	
+	rc = xcdev_check(__func__, xcdev, false);
+	if (unlikely(rc < 0))
 		return rc;
 	xdev = xcdev->xdev;
-	engine = xcdev->engine;
-
-	dbg_sg("In %s()\n", __func__);
 
 	/*sanity checks for offsets*/
-	rc=position_check(xdev->bar_size[xcdev->bar], *pos, engine->addr_align);
-	if (rc < 0)
+	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
+	if (unlikely(rc < 0))
 		return rc;	
 
-	if (count & 3) {
-		dbg_sg("Buffer size must be a multiple of 4 bytes\n");
-		return -EINVAL;
+	/*check for multiple of datapth?*/
+	ep_addr=xdev->bar[xcdev->bar] +*pos;
+	user_buf= (iotype *)buf;
+	dbg_fops("buf: %px,  bypass BAR: %p, pos: %lx (%lu), ep_addr: %p, count %lu, 64 bit IO: %s\n", 
+			buf, xdev->bar[xcdev->bar], *pos, *pos, ep_addr, count, USING64? "true" : "false");
+	/*Get data in largest chunks possible first (8 or 4 bytes)*/
+	for (i=count/sizeof(iotype);i; --i,  ++user_buf, ++ep_addr)
+	{	
+		iotype val=read_func(ep_addr);
+		rc=__put_user(val, user_buf);
+		if(unlikely(rc<0))
+			return rc;
 	}
+ 	
+ 	/*then get remaining data byte by byte*/
+ 	buf= (char __user *) user_buf;
+ 	ep_addr_8=(u8 __iomem *) ep_addr; 
+ 	for(i=count & (sizeof(iotype)-1); i; --i, ++buf, ++ep_addr_8)
+ 	{
+ 		u8 val=ioread8(ep_addr_8);
+		rc=__put_user(val, buf);
+		if(unlikely(rc<0))
+			return rc;
+ 	} 
 
-	if (!buf) {
-		dbg_sg("Caught NULL pointer\n");
-		return -EINVAL;
-	}
-
-	if (xdev->bypass_bar_idx < 0) {
-		dbg_sg("Bypass BAR not present - unsupported operation\n");
-		return -ENODEV;
-	}
-
-	spin_lock(&engine->lock);
-
-	if (!list_empty(&engine->transfer_list)) {
-		list_for_each(idx, &engine->transfer_list) {
-			transfer = list_entry(idx, struct xdma_transfer, entry);
-
-			rc = copy_desc_data(transfer, buf, &buf_offset, count);
-		}
-	}
-
-	spin_unlock(&engine->lock);
-#endif
-	if (rc < 0)
-		return rc;
-	else
-		return buf_offset;
+	*pos+=count;
+	return count;
+	
 }
 
 static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *pos)
 {
 	struct xdma_dev *xdev;
-	struct xdma_engine *engine;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
+	iotype __iomem *ep_addr;
+	iotype __user *user_buf;
+	u8 __iomem *ep_addr_8;
+	size_t i;
 
-	u32 desc_data;
-	void __iomem *bypass_addr;
-	size_t buf_offset = 0;
 	int rc = 0;
-	int copy_err;
-#if 0
-	rc = xcdev_check(__func__, xcdev, 1);
-	if (rc < 0)
+	
+	rc = xcdev_check(__func__, xcdev, false);
+	if (unlikely(rc < 0))
 		return rc;
 	xdev = xcdev->xdev;
-	engine = xcdev->engine;
-	
+		
 	/*sanity checks for offsets*/
-	rc=position_check(xdev->bar_size[xcdev->bar], *pos, engine->addr_align);
-	if (rc < 0)
+	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
+	if (unlikely(rc < 0))
 		return rc;
-	if (count & 3) {
-		dbg_sg("Buffer size must be a multiple of 4 bytes\n");
-		return -EINVAL;
+	
+	ep_addr=xdev->bar[xcdev->bar] +*pos;
+	user_buf= (iotype *)buf;
+	dbg_fops("buf: %px,  bypass BAR: %p, pos: %lx (%lu), ep_addr: %p, count %lu, 64 bit IO: %s\n", 
+			buf, xdev->bar[xcdev->bar], *pos, *pos, ep_addr, count, USING64? "true" : "false");	
+	
+	for (i=count/sizeof(iotype);i; --i,  ++user_buf, ++ep_addr)
+	{
+		iotype val;
+		rc=__get_user(val, user_buf);
+		if(unlikely(rc<0))
+			return rc;
+		write_func(val, ep_addr);
+	
 	}
-
-	if (!buf) {
-		dbg_sg("Caught NULL pointer\n");
-		return -EINVAL;
-	}
-
-	if (xdev->bypass_bar_idx < 0) {
-		dbg_sg("Bypass BAR not present - unsupported operation\n");
-		return -ENODEV;
-	}
-
-	dbg_sg("In %s()\n", __func__);
-
-	spin_lock(&engine->lock);
-
-	/* Write descriptor data to the bypass BAR */
-	bypass_addr = xdev->bar[xdev->bypass_bar_idx];
-	bypass_addr = (void __iomem *)(
-			(u32 __iomem *)bypass_addr + engine->bypass_offset
-			);
-	while (buf_offset < count) {
-		copy_err = copy_from_user(&desc_data, &buf[buf_offset],
-			sizeof(u32));
-		if (!copy_err) {
-			write_register(desc_data, bypass_addr,
-					bypass_addr - engine->bypass_offset);
-			buf_offset += sizeof(u32);
-			rc = buf_offset;
-		} else {
-			dbg_sg("Error reading data from userspace buffer\n");
-			rc = -EINVAL;
-			break;
-		}
-	}
-
-	spin_unlock(&engine->lock);
-
-#endif
-	return rc;
+	
+	buf= (char __user *) user_buf;
+ 	ep_addr_8=(u8 __iomem *) ep_addr; 
+ 	for(i=count & (sizeof(iotype)-1); i; --i, ++buf, ++ep_addr_8)
+ 	{
+ 		u8 val;
+		rc=__get_user(val, buf);
+		if(unlikely(rc<0))
+			return rc;
+		write_func(val, ep_addr_8);
+ 	}
+	*pos+=count;
+	return count;
 }
 
 

@@ -188,7 +188,6 @@
 #define CHANNEL_SPACING 0x100
 #define TARGET_SPACING 0x1000
 
-#define BYPASS_MODE_SPACING 0x0100
 
 /* obtain the 32 most significant (high) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
@@ -480,8 +479,7 @@ struct xdma_engine {
 	/* HW register address offsets */
 	struct engine_regs *regs;		/* Control reg BAR offset */
 	struct engine_sgdma_regs *sgdma_regs;	/* SGDAM reg BAR offset */
-	u32 bypass_offset;			/* Bypass mode BAR offset???? */
-
+	
 	/* Engine state, configuration and flags */
 	//enum shutdown_state shutdown;	/* engine shutdown mode */
 	/*intrinsic properties of engine declared const*/

@@ -1611,8 +1611,6 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	engine->irq_bitmask = (1 << XDMA_ENG_IRQ_NUM) - 1;
 	engine->irq_bitmask <<= (xdev->engines_num * XDMA_ENG_IRQ_NUM);
 #endif
-	engine->bypass_offset = xdev->engines_num * BYPASS_MODE_SPACING;
-
 	/* parent */
 	engine->xdev = xdev;
 	/* register address */
