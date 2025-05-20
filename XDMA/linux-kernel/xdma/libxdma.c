@@ -335,49 +335,7 @@ void get_perf_stats(struct xdma_engine *engine)
 	
 }
 
-static int engine_reg_dump(struct xdma_engine *engine)
-{
-	u32 w;
 
-	if (!engine) {
-		pr_err("dma engine NULL\n");
-		return -EINVAL;
-	}
-
-	w = read_register(&engine->regs->identifier);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (id).\n", engine->name,
-		&engine->regs->identifier, w);
-	w &= BLOCK_ID_MASK;
-	if (w != BLOCK_ID_HEAD) {
-		pr_err("%s: engine id missing, 0x%08x exp. & 0x%x = 0x%x\n",
-		       engine->name, w, BLOCK_ID_MASK, BLOCK_ID_HEAD);
-		return -EINVAL;
-	}
-	/* extra debugging; inspect complete engine set of registers */
-	w = read_register(&engine->regs->status);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (status).\n", engine->name,
-		&engine->regs->status, w);
-	w = read_register(&engine->regs->control);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (control)\n", engine->name,
-		&engine->regs->control, w);
-	w = read_register(&engine->sgdma_regs->first_desc_lo);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (first_desc_lo)\n", engine->name,
-		&engine->sgdma_regs->first_desc_lo, w);
-	w = read_register(&engine->sgdma_regs->first_desc_hi);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (first_desc_hi)\n", engine->name,
-		&engine->sgdma_regs->first_desc_hi, w);
-	w = read_register(&engine->sgdma_regs->first_desc_adjacent);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (first_desc_adjacent).\n",
-		engine->name, &engine->sgdma_regs->first_desc_adjacent, w);
-	w = read_register(&engine->regs->completed_desc_count);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (completed_desc_count).\n",
-		engine->name, &engine->regs->completed_desc_count, w);
-	w = read_register(&engine->regs->interrupt_enable_mask);
-	pr_info("%s: ioread32(0x%p) = 0x%08x (interrupt_enable_mask)\n",
-		engine->name, &engine->regs->interrupt_enable_mask, w);
-
-	return 0;
-}
 /*Checks status and returns if an error occured, in which case its prints errors*/
 static bool engine_process_status(struct xdma_engine *engine, u32 status)
 {
