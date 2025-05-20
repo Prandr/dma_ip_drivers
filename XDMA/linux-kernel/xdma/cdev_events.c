@@ -37,11 +37,8 @@ static ssize_t char_events_read(struct file *filp, char __user *buf,
 	if (rv < 0)
 		return rv;
 	user_irq = xcdev->user_irq;
-	if (!user_irq) {
-		pr_info("xcdev 0x%p, user_irq NULL.\n", xcdev);
-		return -EINVAL;
-	}
-
+	xdma_debug_assert_ptr(user_irq);
+	
 	if (count != 4)
 		return -EPROTO;
 
@@ -86,10 +83,7 @@ static unsigned int char_events_poll(struct file *filp, poll_table *wait)
 	if (rv < 0)
 		return rv;
 	user_irq = xcdev->user_irq;
-	if (!user_irq) {
-		pr_info("xcdev 0x%p, user_irq NULL.\n", xcdev);
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(user_irq);
 
 	poll_wait(filp, &user_irq->events_wq,  wait);
 

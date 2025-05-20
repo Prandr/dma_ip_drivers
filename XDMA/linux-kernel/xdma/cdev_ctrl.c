@@ -130,17 +130,10 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return rv;
 
 	xdev = xcdev->xdev;
-	if (!xdev) {
-		pr_info("cmd %u, xdev NULL.\n", cmd);
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 	pr_info("cmd 0x%x, xdev 0x%p, pdev 0x%p.\n", cmd, xdev, xdev->pdev);
 
-	if (_IOC_TYPE(cmd) != XDMA_IOC_MAGIC) {
-		pr_err("cmd %u, bad magic 0x%x/0x%x.\n",
-			 cmd, _IOC_TYPE(cmd), XDMA_IOC_MAGIC);
-		return -ENOTTY;
-	}
+	xdma_debug_assert_msg(_IOC_TYPE(cmd) == XDMA_IOC_MAGIC, "bad magic.\n", -ENOTTY);
 
 		
 
@@ -157,11 +150,7 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		if (ioctl_obj.magic != XDMA_XCL_MAGIC) {
-			pr_err("magic 0x%x !=  XDMA_XCL_MAGIC (0x%x).\n",
-				ioctl_obj.magic, XDMA_XCL_MAGIC);
-			return -ENOTTY;
-		}
+		xdma_debug_assert_msg(ioctl_obj.magic == XDMA_XCL_MAGIC,"magic !=  XDMA_XCL_MAGIC.\n",	-ENOTTY);
 		return version_ioctl(xcdev, (void __user *)arg);
 	case XDMA_IOCOFFLINE:
 		xdma_device_offline(xdev->pdev, xdev);

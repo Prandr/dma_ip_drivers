@@ -117,6 +117,7 @@ static int config_kobject(struct xdma_cdev *xcdev, enum cdev_type type)
 	return rv;
 }
 
+#ifdef __LIBXDMA_DEBUG__
 int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 {
 	struct xdma_dev *xdev;
@@ -146,6 +147,7 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 
 	return 0;
 }
+#endif
 //implementation of common sanity checks for file offset (position)
 int position_check(resource_size_t max_pos, loff_t pos, loff_t align)
 {
@@ -240,11 +242,7 @@ int char_open(struct inode *inode, struct file *filp)
 
 	/* pointer to containing structure of the character device inode */
 	xcdev = container_of(inode->i_cdev, struct xdma_cdev, cdev);
-	if (xcdev->magic != MAGIC_CHAR) {
-		pr_err("xcdev 0x%p inode 0x%lx magic mismatch 0x%lx\n",
-			xcdev, inode->i_ino, xcdev->magic);
-		return -EINVAL;
-	}
+	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"magic mismatch\n",-EINVAL);
 	/* create a reference to our char device in the opened file */
 	filp->private_data = xcdev;
 	print_file_flags(filp->f_path.dentry->d_iname, filp->f_flags);
@@ -291,17 +289,9 @@ int char_close(struct inode *inode, struct file *filp)
 	struct xdma_dev *xdev;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 
-	if (!xcdev) {
-		pr_err("char device with inode 0x%lx xcdev NULL\n",
-			inode->i_ino);
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xcdev);
 
-	if (xcdev->magic != MAGIC_CHAR) {
-		pr_err("xcdev 0x%p magic mismatch 0x%lx\n",
-				xcdev, xcdev->magic);
-		return -EINVAL;
-	}
+	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"magic mismatch\n", -EINVAL);
 
 	/* fetch device specific data stored earlier during open */
 	xdev = xcdev->xdev;
@@ -355,25 +345,13 @@ static int destroy_xcdev(struct xdma_cdev *cdev)
 		pr_warn("cdev NULL.\n");
 		return -EINVAL;
 	}
-	if (cdev->magic != MAGIC_CHAR) {
-		pr_warn("cdev 0x%p magic mismatch 0x%lx\n", cdev, cdev->magic);
-		return -EINVAL;
-	}
+	xdma_debug_assert_msg(cdev->magic == MAGIC_CHAR,"magic mismatch\n", -EINVAL);
 
-	if (!cdev->xdev) {
-		pr_err("xdev NULL\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(cdev->xdev);
 
-	if (!g_xdma_class) {
-		pr_err("g_xdma_class NULL\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(g_xdma_class);
 
-	if (!cdev->sys_device) {
-		pr_err("cdev sys_device NULL\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(cdev->sys_device);
 
 	if (cdev->sys_device)
 		device_destroy(g_xdma_class, cdev->cdevno);

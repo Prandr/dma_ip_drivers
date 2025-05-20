@@ -37,7 +37,7 @@ int xdma_cdev_init(void);
 int char_open(struct inode *inode, struct file *filp);
 loff_t char_llseek(struct file *filp, loff_t off, int whence);
 int char_close(struct inode *inode, struct file *filp);
-int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
+
 int position_check(resource_size_t max_pos, loff_t pos, loff_t align);
 void cdev_ctrl_init(struct xdma_cdev *xcdev);
 void cdev_xvc_init(struct xdma_cdev *xcdev);
@@ -51,9 +51,11 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev);
 
 int bridge_mmap(struct file *filp, struct vm_area_struct *vma);
 #ifdef __LIBXDMA_DEBUG__
+int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
 void print_fmode(const unsigned char *file_name, unsigned int f_mode);
 #else
 #define print_fmode(...)
+#define xcdev_check(...) 0
 #endif
 
 #endif /* __XDMA_CHRDEV_H__ */

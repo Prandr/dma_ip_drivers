@@ -221,7 +221,7 @@
 			pr_err("Debug assertion %s failed. %s", #cond, msg); \
 			return (ret_val);\
 			}
-#define xdma_debug_assert_ptr(ptr) xdma_debug_assert_msg(ptr!=NULL, "Pointer is NULL.", -EINVAL)
+#define xdma_debug_assert_ptr(ptr) xdma_debug_assert_msg(ptr!=NULL, "Pointer " #ptr" is NULL.", -EINVAL)
 #else
 /* disable debugging */
 #define dbg_io(...)

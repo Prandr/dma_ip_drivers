@@ -153,8 +153,7 @@ static inline int debug_check_dev_hndl(const char *fname, struct pci_dev *pdev,
 {
 	struct xdma_dev *xdev;
 
-	if (!pdev)
-		return -EINVAL;
+	xdma_debug_assert_ptr(pdev);
 
 	xdev = xdev_find_by_pdev(pdev);
 	if (!xdev) {
@@ -316,12 +315,12 @@ void get_perf_stats(struct xdma_engine *engine)
 {
 	u32 hi;
 	u32 lo;
-
+#ifdef __LIBXDMA_DEBUG__
 	if (!engine) {
 		pr_err("dma engine NULL\n");
 		return;
 	}
-
+#endif
 		
 	hi = read_register(&engine->regs->perf_cyc_hi);
 	lo = read_register(&engine->regs->perf_cyc_lo);
@@ -463,10 +462,7 @@ static irqreturn_t user_irq_service(int irq, struct xdma_user_irq *user_irq)
 {
 	unsigned long flags;
 
-	if (!user_irq) {
-		pr_err("Invalid user_irq\n");
-		return IRQ_NONE;
-	}
+	xdma_debug_assert_msg(user_irq!=NULL,"Invalid user_irq\n", IRQ_NONE);
 
 	if (user_irq->handler)
 		return user_irq->handler(user_irq->user_idx, user_irq->dev);
@@ -501,11 +497,7 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	}
 	xdev = (struct xdma_dev *)dev_id;
 
-	if (!xdev) {
-		WARN_ON(!xdev);
-		dbg_irq("%s(irq=%d) xdev=%p ??\n", __func__, irq, xdev);
-		return IRQ_NONE;
-	}
+	xdma_debug_assert_msg(xdev!=NULL, "Invalid XDMA device\n", IRQ_NONE);
 
 	irq_regs = (struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
 					     XDMA_OFS_INT_CTRL);
@@ -613,11 +605,7 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 	engine = (struct xdma_engine *)dev_id;
 	xdev = engine->xdev;
 
-	if (!xdev) {
-		WARN_ON(!xdev);
-		dbg_irq("%s(irq=%d) xdev=%p ??\n", __func__, irq, xdev);
-		return IRQ_NONE;
-	}
+	xdma_debug_assert_msg(xdev!=NULL, "Invalid XDMA device\n", IRQ_NONE);
 
 
 	complete(&(engine->engine_compl));
@@ -733,15 +721,9 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 	 * correctly with both 32-bit and 64-bit BARs.
 	 */
 
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	if (!bar_id_list) {
-		pr_err("Invalid bar id list.\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(bar_id_list);
 
 	dbg_init("xdev 0x%p, bars %d, config at %d.\n", xdev, num_bars,
 		 config_bar_pos);
@@ -946,15 +928,9 @@ static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 {
 	int rv = 0;
 
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	if (!pdev) {
-		pr_err("Invalid pdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(pdev);
 
 	if ((interrupt_mode == 3 || !interrupt_mode) && msi_msix_capable(pdev, PCI_CAP_ID_MSIX)) {
 		int req_nvec = xdev->c2h_channel_num + xdev->h2c_channel_num +
@@ -1115,10 +1091,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	u32 vector;
 	struct xdma_engine *engine;
 
-	if (!xdev) {
-		pr_err("dma engine NULL\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
 	if (!xdev->msix_enabled)
 		return 0;
@@ -1161,12 +1134,12 @@ static void irq_msix_user_teardown(struct xdma_dev *xdev)
 {
 	int i;
 	int j;
-
+#ifdef __LIBXDMA_DEBUG__
 	if (!xdev) {
 		pr_err("Invalid xdev\n");
 		return;
 	}
-
+#endif
 	if (!xdev->msix_enabled)
 		return;
 
@@ -1397,15 +1370,9 @@ static void engine_free_resource(struct xdma_engine *engine)
 
 static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 {
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	if (!engine) {
-		pr_err("dma engine NULL\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(engine);
 
 	dbg_sg("Shutting down engine %s%d", engine->name, engine->channel);
 
@@ -2286,10 +2253,7 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
 
-	if (!pdev) {
-		pr_err("Invalid pdev\n");
-		return NULL;
-	}
+	xdma_debug_assert_msg(pdev!=NULL, "Invalid pdev\n", NULL);
 
 	/* allocate zeroed device book keeping structure */
 	xdev = kzalloc(sizeof(struct xdma_dev), GFP_KERNEL);
@@ -2326,15 +2290,9 @@ static int request_regions(struct xdma_dev *xdev, struct pci_dev *pdev)
 {
 	int rv;
 
-	if (!xdev) {
-		pr_err("Invalid xdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	if (!pdev) {
-		pr_err("Invalid pdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(pdev);
 
 	dbg_init("pci_request_regions()\n");
 	rv = pci_request_regions(pdev, xdev->mod_name);
@@ -2352,10 +2310,7 @@ static int request_regions(struct xdma_dev *xdev, struct pci_dev *pdev)
 
 static int set_dma_mask(struct pci_dev *pdev)
 {
-	if (!pdev) {
-		pr_err("Invalid pdev\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(pdev);
 
 	dbg_init("sizeof(dma_addr_t) == %ld\n", sizeof(dma_addr_t));
 	/* 64-bit addressing capability for XDMA? avilible since 3.13*/
@@ -2385,11 +2340,7 @@ static int get_engine_channel_id(struct engine_regs *regs)
 {
 	int value;
 
-	if (!regs) {
-		pr_err("Invalid engine registers\n");
-		return -EINVAL;
-	}
-
+	xdma_debug_assert_ptr(regs);
 	value = read_register(&regs->identifier);
 
 	return (value & 0x00000f00U) >> 8;
@@ -2399,10 +2350,7 @@ static int get_engine_id(struct engine_regs *regs)
 {
 	int value;
 
-	if (!regs) {
-		pr_err("Invalid engine registers\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(regs);
 
 	value = read_register(&regs->identifier);
 	return (value & 0xffff0000U) >> 16;
@@ -2413,11 +2361,12 @@ static void remove_engines(struct xdma_dev *xdev)
 	struct xdma_engine *engine;
 	int i;
 	int rv;
-
+#ifdef __LIBXDMA_DEBUG__
 	if (!xdev) {
 		pr_err("Invalid xdev\n");
 		return;
 	}
+#endif
 
 	/* iterate over channels */
 	for (i = 0; i < xdev->h2c_channel_num; i++) {

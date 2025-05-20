@@ -97,11 +97,7 @@ static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 
 	int rv;
 	
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
-
+	xdma_debug_assert_ptr(engine);
 
 	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
 		return -EBUSY;
@@ -149,10 +145,7 @@ static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
 	int rv;
 	bool src;
 
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(engine);
 	src = (bool) engine->non_incr_addr;
 
 	dbg_perf("XDMA_IOCTL_ADDRMODE_GET\n");
@@ -163,10 +156,7 @@ static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
 
 static int ioctl_do_align_get(struct xdma_engine *engine, unsigned long arg)
 {
-	if (!engine) {
-		pr_err("Invalid DMA engine\n");
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(engine);
 
 	dbg_perf("XDMA_IOCTL_ALIGN_GET\n");
 	return put_user(engine->addr_align, (int __user *)arg);
