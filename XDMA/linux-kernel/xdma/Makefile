@@ -15,7 +15,7 @@ ifneq ($(xvc_bar_offset),)
 	XVC_FLAGS += -D__XVC_BAR_OFFSET__=$(xvc_bar_offset)
 endif
 
-$(warning XVC_FLAGS: $(XVC_FLAGS).)
+#$(warning XVC_FLAGS: $(XVC_FLAGS).)
 
 topdir := $(shell cd $(src)/.. && pwd)
 
@@ -74,6 +74,8 @@ uninstall:
 	@/bin/rm -rf $(MODLIB)/xdma
 	@$(DEPMOD) -a || true
 	@/bin/rm -f /usr/local/include/xdma_ioctl.h
+help:
+	@cat build-help.txt
 
 
 

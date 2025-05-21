@@ -1,0 +1,30 @@
+XDMA driver build options for make use following naming convention:
+Compile-only options are all capitalised (like a define would be), while 
+options that are also availible as module options (that can be passed to
+modprobe while inserting the driver) are in lowercase to keep them consistent.
+
+DEBUG=1
+Enable verbose debug messages. Could potentially overflow dmesg.
+
+POLLING=1
+Enable polling mode instead of interrupts
+
+config_bar_num=[num]
+Tell the driver which BAR is used by the XDMA. Default is autodetection by
+probing the BARs, which is performed only when 2 BARs are active. 
+In this case may be necessary, if your FPGA design/device cannot tolerate 
+probing by the driver.
+
+h2c_timeout=[x]
+Timeout in ms for H2C DMA interfaces. Default is 5 s.
+0 causes ~50 day timeout interrupt mode and indefinite wait in polling mode.
+
+
+c2h_timeout=[x]
+Timeout in ms for C2H DMA interfaces. Default is 5 s.
+0 causes ~50 day timeout interrupt mode and indefinite wait in polling mode.
+
+c2h_credits=[x]
+Enable credits for C2H DMA interfaces. Which set x credits for each transfer.
+Haphazardly implemented and untested.
+More a provision than a real feature.
