@@ -222,10 +222,11 @@ void print_fmode(const unsigned char *file_name, unsigned int f_mode)
 	"FMODE_OPENED", "FMODE_CREATED", "FMODE_STREAM", "FMODE_CAN_ODIRECT", 
 	"FMODE_NOREUSE", "", "FMODE_BACKING", "FMODE_NONOTIFY", "FMODE_NOWAIT",
 	"FMODE_NEED_UNMOUNT", "FMODE_NOACCOUNT"};
-	pr_info("Mode of file %s was set to: ", file_name);
 	unsigned int i=0;
-	/* if f_mode==0, thera no more set flags)*/
-	for(i; f_mode!=0; ++i, f_mode>>=1)
+	pr_info("Mode of file %s was set to: ", file_name);
+	
+	/* if f_mode==0, there are no more set flags)*/
+	for(; f_mode!=0; ++i, f_mode>>=1)
 	{
 		if(f_mode & 0x1)
 			pr_cont("%s, ", fmodes[i]);	

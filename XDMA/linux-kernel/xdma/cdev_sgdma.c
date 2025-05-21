@@ -51,7 +51,6 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 {
 	ssize_t rv = 0;
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
-	struct xdma_dev *xdev;
 	struct xdma_engine *engine=xcdev->engine;
 	/*guard against attempts for simultaneous transfer*/
 	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
@@ -191,7 +190,8 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 		rv=__get_user( engine->transfer_params.length, &(user_transfer_request->length));
 	if (unlikely(rv<0))
 			goto exit;
-	rv=access_assert(engine->transfer_params.buf, engine->transfer_params.length);
+	/*                 \/ avoids compiler warning*/
+	rv=access_assert((char*) engine->transfer_params.buf, engine->transfer_params.length);
 	if (unlikely(rv<0))
 	{
 		engine->transfer_params.buf=NULL;

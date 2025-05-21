@@ -1436,7 +1436,7 @@ static int engine_init_regs(struct xdma_engine *engine)
 	write_register((u32) engine->poll_mode_wb.dma_addr, &(engine->regs->poll_mode_wb_lo), 0);
 	write_register((u32) (engine->poll_mode_wb.dma_addr>>32), &(engine->regs->poll_mode_wb_hi), 0);
 	control_reg_value|=XDMA_CTRL_POLL_MODE_WB;
-#else/
+#else
 	/* Othwerwise configure error interrupts to match control register by default,
 	thus all events trigger interrupt  */
 	interrupt_reg_value=control_reg_value;
@@ -1520,7 +1520,6 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 {
 	int rv;
 	u32 val;
-	unsigned int desc_max;
 	unsigned int offset=get_engine_offset(dir, channel);
 	struct xdma_engine *engine= dir==DMA_TO_DEVICE? &(xdev->engine_h2c[channel]): &(xdev->engine_c2h[channel]);
 	dbg_init("channel %u, offset 0x%x, dir %s.\n", channel, offset,direction_to_string( dir));
@@ -1670,7 +1669,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	}
 	transfer->cleanup_flags|=XFER_FLAG_DMA_RECORD_ALLOC;
 	/* step through blocks of adjacent descriptors*/
-	for(block_num; (block_num<transfer->num_adj_blocks) && (processed_sg_entries < sg_nents); ++block_num)
+	for(; (block_num<transfer->num_adj_blocks) && (processed_sg_entries < sg_nents); ++block_num)
 	{
 		unsigned int i=0;
 		unsigned desc_in_block=0;
@@ -1692,13 +1691,15 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		dbg_sg("Descriptor DMA record %u: virtual address %p, DMA address %pad\n",
 			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, &(transfer->adj_desc_blocks[block_num].dma_addr));
 		
-		for(i; (processed_sg_entries < sg_nents) && (i<engine->adj_block_len); ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
+		for(; (processed_sg_entries < sg_nents) && (i<engine->adj_block_len); ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
 		{
-			current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
-			dma_addr_t desc_start= sg_dma_address(sg_iter);
+			
 			unsigned int desc_length=0;
 			unsigned int desc_length_accum=0;
-							
+			dma_addr_t desc_start= sg_dma_address(sg_iter);
+			current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
+			
+										
 			dbg_sg("SG entries:\n");
 			/*merge entries that are contiguous in DMA (bus) address space*/
 			while((processed_sg_entries < sg_nents) && ((sg_prev==NULL) || ((sg_dma_address(sg_prev)+sg_dma_len(sg_prev))==sg_dma_address(sg_iter))) )
@@ -1982,7 +1983,7 @@ static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 
 {
 	ssize_t completed_length=0;
 	unsigned int i=0;
-	for(i; i< num_descriptors; ++i)
+	for(; i< num_descriptors; ++i)
 		completed_length += engine->transfer.adj_desc_blocks[0].virtual_addr[i].bytes;
 		
 	return completed_length;
@@ -2048,7 +2049,7 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 	if(transfer->cleanup_flags & XFER_FLAG_DESC_DMA_ALLOC)
 	{
 		unsigned int i=0;
-		for(i; (i <transfer->num_adj_blocks)&& (transfer->adj_desc_blocks[i].length>0); ++i)
+		for(; (i <transfer->num_adj_blocks)&& (transfer->adj_desc_blocks[i].length>0); ++i)
 			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].virtual_addr,
 					 transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].dma_addr);
 	}
@@ -2153,10 +2154,10 @@ int xdma_performance_submit(struct xdma_engine *engine)
 	engine->transfer.adj_desc_blocks->dma_addr=desc_dma_addr;
 	engine->transfer.adj_desc_blocks->length=engine->adj_block_len*sizeof(struct xdma_desc);
 	
-	for(i; i<num_bufs; ++i, desc_dma_addr+=sizeof(struct xdma_desc), --next_adj)
+	for(; i<num_bufs; ++i, desc_dma_addr+=sizeof(struct xdma_desc), --next_adj)
 	{
-		current_desc=&(engine->transfer.adj_desc_blocks->virtual_addr[i]);
 		unsigned int buf_length= (i==(num_bufs-1))? engine->xdma_perf.transfer_size & (KMALLOC_MAX_SIZE-1) : KMALLOC_MAX_SIZE;
+		current_desc=&(engine->transfer.adj_desc_blocks->virtual_addr[i]);
 		perf_bufs[i].virtual_addr=kmalloc(buf_length, GFP_KERNEL|__GFP_RETRY_MAYFAIL);
 		if(perf_bufs[i].virtual_addr==NULL)
 		{	
@@ -2251,8 +2252,7 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 {
 	int i;
 	struct xdma_dev *xdev;
-	struct xdma_engine *engine;
-
+	
 	xdma_debug_assert_msg(pdev!=NULL, "Invalid pdev\n", NULL);
 
 	/* allocate zeroed device book keeping structure */
@@ -2466,8 +2466,7 @@ static bool probe_for_engine(struct xdma_dev *xdev, enum dma_data_direction dir,
 	u32 engine_id_expected;
 	u32 channel_id;
 	struct xdma_engine *engine;
-	int rv;
-
+	
 	if (dir == DMA_TO_DEVICE) {
 		engine_id_expected = XDMA_ID_H2C;
 		engine = &xdev->engine_h2c[channel];
@@ -2753,8 +2752,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 
 	/* wait for all engines to be idle */
 	for (i = 0; i < xdev->h2c_channel_num; i++) {
-		unsigned long flags;
-
+		
 		engine = &xdev->engine_h2c[i];
 
 		if (engine->magic == MAGIC_ENGINE) {
@@ -2767,8 +2765,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	}
 
 	for (i = 0; i < xdev->c2h_channel_num; i++) {
-		unsigned long flags;
-
+		
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			
@@ -2794,7 +2791,6 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 {
 	struct xdma_dev *xdev = (struct xdma_dev *)dev_hndl;
 	struct xdma_engine *engine;
-	unsigned long flags;
 	int i;
 
 	if (!dev_hndl)

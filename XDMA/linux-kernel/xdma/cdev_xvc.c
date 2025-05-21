@@ -213,9 +213,9 @@ static long xvc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		pr_info("copy back tdo_buf failed: %d/%u.\n", rv, total_bytes);
 
 unlock:
-#if HAS_MMIOWB
-	mmiowb();
-#endif
+
+	wmb();
+
 	spin_unlock(&xcdev->lock);
 
 cleanup:

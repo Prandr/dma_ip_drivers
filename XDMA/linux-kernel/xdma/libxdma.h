@@ -441,7 +441,7 @@ struct  {\
 } 
 /*holds transfer parameters*/
 struct xdma_transfer_params {
-	char __user *buf;
+	const char __user *buf;
 	size_t length; 
 	loff_t ep_addr;
 #ifdef __LIBXDMA_DEBUG__

@@ -122,7 +122,6 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_ioc_base ioctl_obj;
-	long result = 0;
 	int rv;
 
 	rv = xcdev_check(__func__, xcdev, 0);
