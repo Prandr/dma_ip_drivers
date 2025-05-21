@@ -737,8 +737,8 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 		/* Only one BAR present - it must be config bar, but verify */
 									
 		if(config_bar_pos<0)
-		{					/*     \/ temporary workaround, should pass real bar length*/
-			if(is_config_bar(xdev, bar_id_list[0], XDMA_BAR_SIZE ))
+		{					
+			if(is_config_bar(xdev, bar_id_list[0], xdev->bar_size[bar_id_list[0]] ))
 				xdev->config_bar_idx=bar_id_list[0];
 			else
 				goto no_config_bar;
@@ -750,13 +750,13 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 		if(config_bar_pos<0)
 		{
 			pr_notice("Config bar num was invalid or not set. Falling back to autodetection");
-			/*  \/config bar 0 was already probed                       \/ temporary workaround, should pass real bar length*/
-			if((config_bar_num!=0)&&is_config_bar(xdev, bar_id_list[0], XDMA_BAR_SIZE ))
+			/*  \/config bar 0 was already probed                      */
+			if((config_bar_num!=0)&&is_config_bar(xdev, bar_id_list[0],  xdev->bar_size[bar_id_list[0]]))
 			{
 				xdev->config_bar_idx=bar_id_list[0];
 				config_bar_pos=0;
-			}					/*     \/ temporary workaround, should pass real bar length*/
-			else if(is_config_bar(xdev, bar_id_list[1], XDMA_BAR_SIZE ))
+			}					
+			else if(is_config_bar(xdev, bar_id_list[1], xdev->bar_size[bar_id_list[1]] ))
 			{
 				xdev->config_bar_idx=bar_id_list[1];
 				config_bar_pos=1;
@@ -779,12 +779,12 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 	case 4:
 		if(config_bar_pos<0)
 		{//config bar must be in the middle - verify by probing expected position
-			if ((num_bars==3)&&is_config_bar(xdev, bar_id_list[1], XDMA_BAR_SIZE))
+			if ((num_bars==3)&&is_config_bar(xdev, bar_id_list[1], xdev->bar_size[bar_id_list[1]]))
 			{
 				xdev->config_bar_idx=bar_id_list[1];
 				config_bar_pos=1;
 			}
-			else if ((num_bars==4)&&is_config_bar(xdev, bar_id_list[2], XDMA_BAR_SIZE))
+			else if ((num_bars==4)&&is_config_bar(xdev, bar_id_list[2], xdev->bar_size[bar_id_list[2]]))
 			{
 				xdev->config_bar_idx=bar_id_list[2];
 				config_bar_pos=2;
@@ -817,7 +817,7 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 	
 no_config_bar:
 	pr_err("Failed to detect XDMA config BAR\n");
-	return -EINVAL;
+	return -ENODEV;
 }
 
 
