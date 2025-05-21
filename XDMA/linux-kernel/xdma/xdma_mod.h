@@ -49,10 +49,8 @@
 #include "libxdma.h"
 
 
-#define MAGIC_ENGINE	0xEEEEEEEEUL
-#define MAGIC_DEVICE	0xDDDDDDDDUL
-#define MAGIC_CHAR	0xCCCCCCCCUL
-#define MAGIC_BITSTREAM 0xBBBBBBBBUL
+#define MAGIC_CHAR	0xCCCCCCCCU
+#define MAGIC_BITSTREAM 0xBBBBBBBBU
 
 extern unsigned int h2c_timeout_ms;
 extern unsigned int c2h_timeout_ms;
@@ -71,7 +69,7 @@ enum cdev_type {
 };
 
 struct xdma_cdev {
-	unsigned long magic;		/* structure ID for sanity checks */
+	unsigned int magic;		/* structure ID for sanity checks */
 	struct xdma_pci_dev *xpdev;
 	struct xdma_dev *xdev;
 	dev_t cdevno;			/* character device major:minor */
@@ -87,7 +85,7 @@ struct xdma_cdev {
 
 /* XDMA PCIe device specific book-keeping */
 struct xdma_pci_dev {
-	unsigned long magic;		/* structure ID for sanity checks */
+	unsigned int magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	struct xdma_dev *xdev;
 	int major;		/* major number */

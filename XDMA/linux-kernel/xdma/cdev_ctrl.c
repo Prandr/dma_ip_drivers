@@ -47,8 +47,8 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	reg = xdev->bar[xcdev->bar] + *pos;
 	//w = read_register(reg);
 	w = ioread32(reg);
-	dbg_sg("%s(@%p, count=%ld, pos=%d) value = 0x%08x\n",
-			__func__, reg, (long)count, (int)*pos, w);
+	dbg_fops("%s(@%p, count=%zu, pos=%lld) value = 0x%08x\n",
+			__func__, reg, count, *pos, w);
 	rv = copy_to_user(buf, &w, 4);
 	if (rv)
 		dbg_sg("Copy to userspace failed but continuing\n");
@@ -81,8 +81,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	if (rv)
 		pr_info("copy from user failed %d/4, but continuing.\n", rv);
 
-	dbg_sg("%s(0x%08x @%p, count=%ld, pos=%d)\n",
-			__func__, w, reg, (long)count, (int)*pos);
+	dbg_sg("%s(0x%08x @%p, count=%zu, pos=%lld)\n",
+			__func__, w, reg, count, *pos);
 	//write_register(w, reg);
 	iowrite32(w, reg);
 	*pos += 4;
@@ -93,11 +93,11 @@ static long version_ioctl(struct xdma_cdev *xcdev, void __user *arg)
 {
 	struct xdma_ioc_info obj;
 	struct xdma_dev *xdev = xcdev->xdev;
-	int rv;
+	long rv;
 
 	rv = copy_from_user((void *)&obj, arg, sizeof(struct xdma_ioc_info));
 	if (rv) {
-		pr_info("copy from user failed %d/%ld.\n",
+		pr_err("copy from user failed %ld/%ld.\n",
 			rv, sizeof(struct xdma_ioc_info));
 		return -EFAULT;
 	}
@@ -193,7 +193,7 @@ int bridge_mmap(struct file *filp, struct vm_area_struct *vma)
 	dbg_sg("mmap(): cdev->bar = %d\n", xcdev->bar);
 	dbg_sg("mmap(): xdev = 0x%p\n", xdev);
 	dbg_sg("mmap(): pci_dev = 0x%08lx\n", (unsigned long)xdev->pdev);
-	dbg_sg("off = 0x%lx, vsize 0x%lu, psize 0x%llu.\n", off, vsize, psize);
+	dbg_sg("off = 0x%lx, vsize %lu, psize %llu.\n", off, vsize, psize);
 	dbg_sg("start = 0x%llx\n",
 		(unsigned long long)pci_resource_start(xdev->pdev,
 		xcdev->bar));

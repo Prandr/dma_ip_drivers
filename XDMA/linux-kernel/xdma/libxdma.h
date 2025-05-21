@@ -39,7 +39,7 @@
 #define XDMA_BAR_NUM (6)
 
 /* maximum amount of register space to map */
-#define XDMA_BAR_SIZE (0x8000UL)
+#define XDMA_BAR_SIZE (0x8000U)
 
 /* Use this definition to poll several times between calls to schedule */
 #define NUM_POLLS_PER_SCHED 100
@@ -54,8 +54,8 @@
 #define RX_STATUS_EOP		(1)
 
 /* Target internal components on XDMA control BAR */
-#define XDMA_OFS_INT_CTRL	(0x2000UL)
-#define XDMA_OFS_CONFIG		(0x3000UL)
+#define XDMA_OFS_INT_CTRL	(0x2000U)
+#define XDMA_OFS_CONFIG		(0x3000U)
 
 #define XDMA_DESC_FIFO_DEPTH 512
 
@@ -67,39 +67,39 @@
 
 #define XDMA_MAX_C2H_CREDITS  ((1<<10)-1)
 /* bits of the SG DMA control register */
-#define XDMA_CTRL_RUN_STOP			(1UL << 0)
-#define XDMA_CTRL_IE_DESC_STOPPED		(1UL << 1)
-#define XDMA_CTRL_IE_DESC_COMPLETED		(1UL << 2)
-#define XDMA_CTRL_IE_DESC_ALIGN_MISMATCH	(1UL << 3)
-#define XDMA_CTRL_IE_MAGIC_STOPPED		(1UL << 4)
-#define XDMA_CTRL_IE_INVALID_LENGTH		(1UL << 5)
-#define XDMA_CTRL_IE_IDLE_STOPPED		(1UL << 6)
-#define XDMA_CTRL_IE_READ_ERROR			(0x1FUL << 9)
-#define XDMA_CTRL_IE_WRITE_ERROR		(0x1FUL << 14)
-#define XDMA_CTRL_IE_DESC_ERROR			(0x1FUL << 19)
-#define XDMA_CTRL_NON_INCR_ADDR			(1UL << 25)
-#define XDMA_CTRL_POLL_MODE_WB			(1UL << 26)
-#define XDMA_CTRL_STM_MODE_WB			(1UL << 27)
+#define XDMA_CTRL_RUN_STOP			(1U << 0)
+#define XDMA_CTRL_IE_DESC_STOPPED		(1U << 1)
+#define XDMA_CTRL_IE_DESC_COMPLETED		(1U << 2)
+#define XDMA_CTRL_IE_DESC_ALIGN_MISMATCH	(1U << 3)
+#define XDMA_CTRL_IE_MAGIC_STOPPED		(1U << 4)
+#define XDMA_CTRL_IE_INVALID_LENGTH		(1U << 5)
+#define XDMA_CTRL_IE_IDLE_STOPPED		(1U << 6)
+#define XDMA_CTRL_IE_READ_ERROR			(0x1FU << 9)
+#define XDMA_CTRL_IE_WRITE_ERROR		(0x1FU << 14)
+#define XDMA_CTRL_IE_DESC_ERROR			(0x1FU << 19)
+#define XDMA_CTRL_NON_INCR_ADDR			(1U << 25)
+#define XDMA_CTRL_POLL_MODE_WB			(1U << 26)
+#define XDMA_CTRL_STM_MODE_WB			(1U << 27)
 
 /* bits of the SG DMA status register */
-#define XDMA_STAT_BUSY			(1UL << 0)
-#define XDMA_STAT_DESC_STOPPED		(1UL << 1)
-#define XDMA_STAT_DESC_COMPLETED	(1UL << 2)
-#define XDMA_STAT_ALIGN_MISMATCH	(1UL << 3)
-#define XDMA_STAT_MAGIC_STOPPED		(1UL << 4)
-#define XDMA_STAT_INVALID_LEN		(1UL << 5)
-#define XDMA_STAT_IDLE_STOPPED		(1UL << 6)
+#define XDMA_STAT_BUSY			(1U << 0)
+#define XDMA_STAT_DESC_STOPPED		(1U << 1)
+#define XDMA_STAT_DESC_COMPLETED	(1U << 2)
+#define XDMA_STAT_ALIGN_MISMATCH	(1U << 3)
+#define XDMA_STAT_MAGIC_STOPPED		(1U << 4)
+#define XDMA_STAT_INVALID_LEN		(1U << 5)
+#define XDMA_STAT_IDLE_STOPPED		(1U << 6)
 
 #define XDMA_STAT_COMMON_ERR_MASK \
 	(XDMA_STAT_ALIGN_MISMATCH | XDMA_STAT_MAGIC_STOPPED | \
 	 XDMA_STAT_INVALID_LEN)
 
 /* desc_error, C2H & H2C */
-#define XDMA_STAT_DESC_UNSUPP_REQ	(1UL << 19)
-#define XDMA_STAT_DESC_COMPL_ABORT	(1UL << 20)
-#define XDMA_STAT_DESC_PARITY_ERR	(1UL << 21)
-#define XDMA_STAT_DESC_HEADER_EP	(1UL << 22)
-#define XDMA_STAT_DESC_UNEXP_COMPL	(1UL << 23)
+#define XDMA_STAT_DESC_UNSUPP_REQ	(1U << 19)
+#define XDMA_STAT_DESC_COMPL_ABORT	(1U << 20)
+#define XDMA_STAT_DESC_PARITY_ERR	(1U << 21)
+#define XDMA_STAT_DESC_HEADER_EP	(1U << 22)
+#define XDMA_STAT_DESC_UNEXP_COMPL	(1U << 23)
 
 #define XDMA_STAT_DESC_ERR_MASK	\
 	(XDMA_STAT_DESC_UNSUPP_REQ | XDMA_STAT_DESC_COMPL_ABORT | \
@@ -107,11 +107,11 @@
 	 XDMA_STAT_DESC_UNEXP_COMPL)
 
 /* read error: H2C */
-#define XDMA_STAT_H2C_R_UNSUPP_REQ	(1UL << 9)
-#define XDMA_STAT_H2C_R_COMPL_ABORT	(1UL << 10)
-#define XDMA_STAT_H2C_R_PARITY_ERR	(1UL << 11)
-#define XDMA_STAT_H2C_R_HEADER_EP	(1UL << 12)
-#define XDMA_STAT_H2C_R_UNEXP_COMPL	(1UL << 13)
+#define XDMA_STAT_H2C_R_UNSUPP_REQ	(1U << 9)
+#define XDMA_STAT_H2C_R_COMPL_ABORT	(1U << 10)
+#define XDMA_STAT_H2C_R_PARITY_ERR	(1U << 11)
+#define XDMA_STAT_H2C_R_HEADER_EP	(1U << 12)
+#define XDMA_STAT_H2C_R_UNEXP_COMPL	(1U << 13)
 
 #define XDMA_STAT_H2C_R_ERR_MASK	\
 	(XDMA_STAT_H2C_R_UNSUPP_REQ | XDMA_STAT_H2C_R_COMPL_ABORT | \
@@ -119,15 +119,15 @@
 	 XDMA_STAT_H2C_R_UNEXP_COMPL)
 
 /* write error, H2C only */
-#define XDMA_STAT_H2C_W_DECODE_ERR	(1UL << 14)
-#define XDMA_STAT_H2C_W_SLAVE_ERR	(1UL << 15)
+#define XDMA_STAT_H2C_W_DECODE_ERR	(1U << 14)
+#define XDMA_STAT_H2C_W_SLAVE_ERR	(1U << 15)
 
 #define XDMA_STAT_H2C_W_ERR_MASK	\
 	(XDMA_STAT_H2C_W_DECODE_ERR | XDMA_STAT_H2C_W_SLAVE_ERR)
 
 /* read error: C2H */
-#define XDMA_STAT_C2H_R_DECODE_ERR	(1UL << 9)
-#define XDMA_STAT_C2H_R_SLAVE_ERR	(1UL << 10)
+#define XDMA_STAT_C2H_R_DECODE_ERR	(1U << 9)
+#define XDMA_STAT_C2H_R_SLAVE_ERR	(1U << 10)
 
 #define XDMA_STAT_C2H_R_ERR_MASK	\
 	(XDMA_STAT_C2H_R_DECODE_ERR | XDMA_STAT_C2H_R_SLAVE_ERR)
@@ -142,16 +142,16 @@
 	 XDMA_STAT_C2H_R_ERR_MASK)
 
 /* bits of the SGDMA descriptor control field */
-#define XDMA_DESC_STOPPED	(1UL << 0)
-#define XDMA_DESC_COMPLETED	(1UL << 1)
-#define XDMA_DESC_EOP		(1UL << 4)
+#define XDMA_DESC_STOPPED	(1U << 0)
+#define XDMA_DESC_COMPLETED	(1U << 1)
+#define XDMA_DESC_EOP		(1U << 4)
 
-#define XDMA_PERF_RUN	(1UL << 0)
-#define XDMA_PERF_CLEAR	(1UL << 1)
-#define XDMA_PERF_AUTO	(1UL << 2)
+#define XDMA_PERF_RUN	(1U << 0)
+#define XDMA_PERF_CLEAR	(1U << 1)
+#define XDMA_PERF_AUTO	(1U << 2)
 
-#define MAGIC_ENGINE	0xEEEEEEEEUL
-#define MAGIC_DEVICE	0xDDDDDDDDUL
+#define MAGIC_ENGINE	0xEEEEEEEEU
+#define MAGIC_DEVICE	0xDDDDDDDDU
 
 /* upper 16-bits of engine identifier register */
 #define XDMA_ID_H2C 0x1fc0U
@@ -160,27 +160,27 @@
 /* for C2H AXI-ST mode */
 #define CYCLIC_RX_PAGES_MAX	256
 
-#define LS_BYTE_MASK 0x000000FFUL
+#define LS_BYTE_MASK 0x000000FFU
 
 #define BLOCK_ID_MASK 0xFFF00000
 #define BLOCK_ID_HEAD 0x1FC00000
 
-#define IRQ_BLOCK_ID 0x1fc20000UL
-#define CONFIG_BLOCK_ID 0x1fc30000UL
+#define IRQ_BLOCK_ID 0x1fc20000U
+#define CONFIG_BLOCK_ID 0x1fc30000U
 
-#define WB_COUNT_MASK 0x00ffffffUL
-#define WB_ERR_MASK (1UL << 31)
+#define WB_COUNT_MASK 0x00ffffffU
+#define WB_ERR_MASK (1U << 31)
 #define POLL_TIMEOUT_SECONDS 10
 
 #define MAX_USER_IRQ 16
 
 #define MAX_DESC_BUS_ADDR (0xffffffffULL)
 
-#define DESC_MAGIC 0xAD4B0000UL
+#define DESC_MAGIC 0xAD4B0000U
 #define DESC_ADJ_SHIFT 8
-#define DESC_ADJ_MASK (0x3FUL<<DESC_ADJ_SHIFT)
+#define DESC_ADJ_MASK (0x3FU<<DESC_ADJ_SHIFT)
 
-#define C2H_WB 0x52B4UL
+#define C2H_WB 0x52B4U
 
 #define MAX_NUM_ENGINES (XDMA_CHANNEL_NUM_MAX * 2)
 #define H2C_CHANNEL_OFFSET 0x1000
@@ -192,7 +192,7 @@
 /* obtain the 32 most significant (high) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
 /* obtain the 32 least significant (low) bits of a 32-bit or 64-bit address */
-#define PCI_DMA_L(addr) (addr & 0xffffffffUL)
+#define PCI_DMA_L(addr) (addr & 0xffffffffU)
 /*split a 64-bit value into 32-bit values. To be used with descriptors*/
 #define split_into_val32(val64, val32_high, val32_low) \
 	val32_high=cpu_to_le32((typeof(val32_high)) ((val64)>>32));\
@@ -449,12 +449,12 @@ struct xdma_transfer_params {
 #endif
 };
 
-#define XFER_FLAG_PAGES_ALLOC (1UL<<0)
-#define XFER_FLAG_PAGES_PINNED (1UL<<1)
-#define XFER_FLAG_SGTABLE_ALLOC (1UL<<2)
-#define XFER_FLAG_SGTABLE_MAPPED (1UL<<3)
-#define XFER_FLAG_DMA_RECORD_ALLOC (1UL<<4)
-#define XFER_FLAG_DESC_DMA_ALLOC (1UL<<5)
+#define XFER_FLAG_PAGES_ALLOC (1U<<0)
+#define XFER_FLAG_PAGES_PINNED (1U<<1)
+#define XFER_FLAG_SGTABLE_ALLOC (1U<<2)
+#define XFER_FLAG_SGTABLE_MAPPED (1U<<3)
+#define XFER_FLAG_DMA_RECORD_ALLOC (1U<<4)
+#define XFER_FLAG_DESC_DMA_ALLOC (1U<<5)
 
 /* holds data necessary to perform a transfer*/
 struct xdma_transfer {
@@ -470,7 +470,7 @@ struct xdma_transfer {
 #define XENGINE_BUSY_BIT 1L
 
 struct xdma_engine {
-	unsigned long magic;	/* structure ID for sanity checks */
+	unsigned int magic;	/* structure ID for sanity checks */
 	struct xdma_dev *xdev;	/* parent device */
 	char name[16];		/* name of this engine */
 	int version;		/* version of this engine */
@@ -534,7 +534,7 @@ struct xdma_dev {
 	struct list_head list_head;
 	struct list_head rcu_node;
 
-	unsigned long magic;		/* structure ID for sanity checks */
+	unsigned int magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	int idx;		/* dev index */
 

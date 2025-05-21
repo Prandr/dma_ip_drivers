@@ -55,6 +55,7 @@ static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 		return rc;
 	xdev = xcdev->xdev;
 
+
 	/*sanity checks for offsets*/
 	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
 	if (unlikely(rc < 0))
@@ -63,7 +64,7 @@ static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 	/*check for multiple of datapth?*/
 	ep_addr=xdev->bar[xcdev->bar] +*pos;
 	user_buf= (iotype *)buf;
-	dbg_fops("buf: %px,  bypass BAR: %p, pos: %lx (%lu), ep_addr: %p, count %lu, 64 bit IO: %s\n", 
+	dbg_fops("buf: %px,  bypass BAR: %p, pos: %llx (%lld), ep_addr: %p, count %zu, 64 bit IO: %s\n", 
 			buf, xdev->bar[xcdev->bar], *pos, *pos, ep_addr, count, USING64? "true" : "false");
 	/*Get data in largest chunks possible first (8 or 4 bytes)*/
 	for (i=count/sizeof(iotype);i; --i,  ++user_buf, ++ep_addr)
@@ -107,6 +108,7 @@ static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 		return rc;
 	xdev = xcdev->xdev;
 		
+
 	/*sanity checks for offsets*/
 	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
 	if (unlikely(rc < 0))
@@ -114,7 +116,7 @@ static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 	
 	ep_addr=xdev->bar[xcdev->bar] +*pos;
 	user_buf= (iotype *)buf;
-	dbg_fops("buf: %px,  bypass BAR: %p, pos: %lx (%lu), ep_addr: %p, count %lu, 64 bit IO: %s\n", 
+	dbg_fops("buf: %px,  bypass BAR: %p, pos: %llx (%lld), ep_addr: %p, count %zu, 64 bit IO: %s\n", 
 			buf, xdev->bar[xcdev->bar], *pos, *pos, ep_addr, count, USING64? "true" : "false");	
 	
 	for (i=count/sizeof(iotype);i; --i,  ++user_buf, ++ep_addr)

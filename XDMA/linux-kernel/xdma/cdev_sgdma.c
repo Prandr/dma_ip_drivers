@@ -111,7 +111,7 @@ static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 		goto exit;
 	}
 	
-	dbg_perf("transfer_size = %d\n", engine->xdma_perf.transfer_size);
+	dbg_perf("Performance test transfer_size = %u\n", engine->xdma_perf.transfer_size);
 	rv = xdma_performance_submit(engine);
 	if (rv < 0)
 		goto exit;

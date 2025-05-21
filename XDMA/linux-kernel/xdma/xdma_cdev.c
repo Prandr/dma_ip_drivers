@@ -123,14 +123,14 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 	struct xdma_dev *xdev;
 
 	if (!xcdev || xcdev->magic != MAGIC_CHAR) {
-		pr_info("%s, xcdev 0x%p, magic 0x%lx.\n",
+		pr_info("%s, xcdev 0x%p, magic 0x%x.\n",
 			fname, xcdev, xcdev ? xcdev->magic : 0xFFFFFFFF);
 		return -EINVAL;
 	}
 
 	xdev = xcdev->xdev;
 	if (!xdev || xdev->magic != MAGIC_DEVICE) {
-		pr_info("%s, xdev 0x%p, magic 0x%lx.\n",
+		pr_info("%s, xdev 0x%p, magic 0x%x.\n",
 			fname, xdev, xdev ? xdev->magic : 0xFFFFFFFF);
 		return -EINVAL;
 	}
@@ -139,7 +139,7 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 		struct xdma_engine *engine = xcdev->engine;
 
 		if (!engine || engine->magic != MAGIC_ENGINE) {
-			pr_info("%s, engine 0x%p, magic 0x%lx.\n", fname,
+			pr_info("%s, engine 0x%p, magic 0x%x.\n", fname,
 				engine, engine ? engine->magic : 0xFFFFFFFF);
 			return -EINVAL;
 		}
@@ -158,7 +158,7 @@ int position_check(resource_size_t max_pos, loff_t pos, loff_t align)
 	}
 	if (unlikely((resource_size_t) pos >= max_pos))
 	{
-		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %lld\n", pos, pos, max_pos);
+		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %llu\n", pos, pos, max_pos);
 		return -EFBIG;
 	}
 	if (unlikely(pos & (align - 1)))
@@ -242,7 +242,7 @@ int char_open(struct inode *inode, struct file *filp)
 
 	/* pointer to containing structure of the character device inode */
 	xcdev = container_of(inode->i_cdev, struct xdma_cdev, cdev);
-	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"magic mismatch\n",-EINVAL);
+	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"char magic mismatch\n",-EINVAL);
 	/* create a reference to our char device in the opened file */
 	filp->private_data = xcdev;
 	print_file_flags(filp->f_path.dentry->d_iname, filp->f_flags);
@@ -276,7 +276,7 @@ loff_t char_llseek(struct file *filp, loff_t off, int whence)
 	if (newpos < 0 || (resource_size_t) newpos >=maxpos)
 		return -EINVAL;
 	filp->f_pos = newpos;
-	dbg_fops("%s: pos=%lld\n", __func__, (signed long long)newpos);
+	dbg_fops("%s: pos=%lld\n", __func__, newpos);
 
 	return newpos;
 }
@@ -291,20 +291,13 @@ int char_close(struct inode *inode, struct file *filp)
 
 	xdma_debug_assert_ptr(xcdev);
 
-	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"magic mismatch\n", -EINVAL);
+	xdma_debug_assert_msg(xcdev->magic == MAGIC_CHAR,"char magic mismatch\n", -EINVAL);
 
 	/* fetch device specific data stored earlier during open */
 	xdev = xcdev->xdev;
-	if (!xdev) {
-		pr_err("char device with inode 0x%lx xdev NULL\n",
-			inode->i_ino);
-		return -EINVAL;
-	}
+	xdma_debug_assert_ptr(xdev);
 
-	if (xdev->magic != MAGIC_DEVICE) {
-		pr_err("xdev 0x%p magic mismatch 0x%lx\n", xdev, xdev->magic);
-		return -EINVAL;
-	}
+	xdma_debug_assert_msg(xdev->magic == MAGIC_DEVICE,"device magic mismatch\n", -EINVAL);
 
 	return 0;
 }
@@ -345,7 +338,7 @@ static int destroy_xcdev(struct xdma_cdev *cdev)
 		pr_warn("cdev NULL.\n");
 		return -EINVAL;
 	}
-	xdma_debug_assert_msg(cdev->magic == MAGIC_CHAR,"magic mismatch\n", -EINVAL);
+	xdma_debug_assert_msg(cdev->magic == MAGIC_CHAR,"char magic mismatch\n", -EINVAL);
 
 	xdma_debug_assert_ptr(cdev->xdev);
 

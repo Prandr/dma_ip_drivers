@@ -174,7 +174,7 @@ static inline int debug_check_dev_hndl(const char *fname, struct pci_dev *pdev,
 /* SECTION: Function definitions */
 #define write_register(v, mem, off) \
 do {\
-pr_info("w reg %s: 0x%lx(0x%p), 0x%x.\n", #mem, off, mem, v); \
+pr_info("w reg %s: 0x%lx(0x%p), 0x%x.\n", #mem, (unsigned long) (off), mem, v); \
 	iowrite32(v, mem);\
 }while(0)
 #else
@@ -731,7 +731,7 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 	switch (num_bars) {
 	case 0:
 	/* no bars were identified - probably wrong device*/
-		pr_crit("No BARs were detected!");
+		pr_crit("No BARs were detected!\n");
 		return -ENODEV;
 	case 1:
 		/* Only one BAR present - it must be config bar, but verify */
@@ -749,7 +749,7 @@ static int identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
 	case 2:
 		if(config_bar_pos<0)
 		{
-			pr_notice("Config bar num was invalid or not set. Falling back to autodetection");
+			pr_notice("Config bar num was invalid or not set. Falling back to autodetection.\n");
 			/*  \/config bar 0 was already probed                      */
 			if((config_bar_num!=0)&&is_config_bar(xdev, bar_id_list[0],  xdev->bar_size[bar_id_list[0]]))
 			{
@@ -1119,7 +1119,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
 				 engine);
 		if (rv) {
-			pr_info("requesti irq#%d failed %d, engine %s.\n",
+			pr_info("requesting irq#%d failed %d, engine %s.\n",
 				vector, rv, engine->name);
 			return rv;
 		}
@@ -1342,9 +1342,9 @@ static void engine_alignments(struct xdma_engine *engine)
 	granularity_bytes = (w & 0x0000ff00U) >> 8;
 	address_bits = (w & 0x000000ffU);
 
-	dbg_init("align_bytes = %d\n", align_bytes);
-	dbg_init("granularity_bytes = %d\n", granularity_bytes);
-	dbg_init("address_bits = %d\n", address_bits);
+	dbg_init("align_bytes = %u\n", align_bytes);
+	dbg_init("granularity_bytes = %u\n", granularity_bytes);
+	dbg_init("address_bits = %u\n", address_bits);
 /*cast away const just for initialisation)*/
 	if (w) {
 		const_cast(u8, engine->addr_align) = align_bytes;
@@ -1392,7 +1392,7 @@ static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 	}
 
 
-	/* Release memory use for descriptor writebacks */
+	/* Release memory allocated for engine use*/
 	engine_free_resource(engine);
 
 	memset(engine, 0, sizeof(struct xdma_engine));
@@ -1490,11 +1490,11 @@ static int engine_alloc_resource(struct xdma_engine *engine)
 					&(engine->poll_mode_wb.dma_addr), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
 	if(unlikely(engine->poll_mode_wb.virtual_addr==NULL))
 	{
-		pr_err("Failed to alloacate structure for poll mode.\n");
+		pr_err("Failed to allocate structure for poll mode.\n");
 		return -ENOMEM;
 	}
 	engine->poll_mode_wb.length= sizeof(struct xdma_poll_wb);
-	dbg_init("Poll mode wb: virt %p, DMA addr %llx\n", engine->poll_mode_wb.virtual_addr, engine->poll_mode_wb.dma_addr);
+	dbg_init("Poll mode wb: virt %p, DMA addr %pad\n", engine->poll_mode_wb.virtual_addr, &(engine->poll_mode_wb.dma_addr));
 #endif
 
 
@@ -1523,7 +1523,7 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	unsigned int desc_max;
 	unsigned int offset=get_engine_offset(dir, channel);
 	struct xdma_engine *engine= dir==DMA_TO_DEVICE? &(xdev->engine_h2c[channel]): &(xdev->engine_c2h[channel]);
-	dbg_init("channel %d, offset 0x%x, dir %s.\n", channel, offset,direction_to_string( dir));
+	dbg_init("channel %u, offset 0x%x, dir %s.\n", channel, offset,direction_to_string( dir));
 	
 
 	/* set magic */
@@ -1619,7 +1619,7 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		if((((uintptr_t) transfer_params->buf) &addr_align_mask)!=0|| (transfer_params->ep_addr&addr_align_mask)!=0)
 		{
 			
-			pr_err("The address of transfer buffer 0x%px or AXI address %lld are not multiple of %u\n", 
+			pr_err("The address of transfer buffer 0x%px or AXI address %llx are not multiple of %u\n", 
 				transfer_params->buf, transfer_params->ep_addr, engine->addr_align);
 			return -EINVAL;
 		}
@@ -1682,15 +1682,15 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 						GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
 		if(unlikely(transfer->adj_desc_blocks[block_num].virtual_addr==NULL))
 		{
-			dbg_sg("Failed to allocate memory from descriptor pool on engune %s\n", engine->name);		
+			dbg_sg("Failed to allocate memory from descriptor pool on engine %s\n", engine->name);		
 			return -ENOMEM;
 		}
 		transfer->adj_desc_blocks[block_num].dma_addr=desc_dma_addr;
 		transfer->adj_desc_blocks[block_num].length=engine->adj_block_len*sizeof(struct xdma_desc);
 		transfer->cleanup_flags|=XFER_FLAG_DESC_DMA_ALLOC;
 		
-		dbg_sg("Descriptor DMA record %u: virtual address %p, DMA address %#016llx\n",
-			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, transfer->adj_desc_blocks[block_num].dma_addr);
+		dbg_sg("Descriptor DMA record %u: virtual address %p, DMA address %pad\n",
+			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, &(transfer->adj_desc_blocks[block_num].dma_addr));
 		
 		for(i; (processed_sg_entries < sg_nents) && (i<engine->adj_block_len); ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
 		{
@@ -1706,8 +1706,8 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 				desc_length_accum+=sg_dma_len(sg_iter);
 				if(likely(desc_length_accum<=XDMA_DESC_BLEN_MAX))
 				{
-					dbg_sg("%u: 0x%p, pg 0x%p,%u+%u, dma %#016llx,%u.\n", processed_sg_entries, sg_iter, sg_page((struct scatterlist *) sg_iter), 
-					sg_iter->offset, sg_iter->length, sg_dma_address(sg_iter),sg_dma_len(sg_iter));
+					dbg_sg("%u: 0x%p, pg 0x%p,%u+%u, dma %pad,%u.\n", processed_sg_entries, sg_iter, sg_page((struct scatterlist *) sg_iter), 
+					sg_iter->offset, sg_iter->length, &sg_dma_address(sg_iter),sg_dma_len(sg_iter));
 					desc_length=desc_length_accum;
 					++processed_sg_entries;
 					sg_prev=sg_iter;
@@ -1718,7 +1718,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 					
 				
 			}
-			dbg_sg("were merged into descriptor %u with start DMA addr %llx, length %u:\n", i, desc_start, desc_length);
+			dbg_sg("were merged into descriptor %u with start DMA addr %pad, length %u:\n", i, &desc_start, desc_length);
 		
 		
 		
@@ -2126,7 +2126,7 @@ int xdma_performance_submit(struct xdma_engine *engine)
 	if(engine->xdma_perf.transfer_size==0 ||
 	engine->xdma_perf.transfer_size & (engine->xdev->datapath_width-1))
 	{
-		pr_err("Invalid performance transfer length. It must be positive and aligned to datapath width %u\n", 
+		pr_err("Invalid performance transfer length. It must be positive and be multiple of datapath width %u\n", 
 			engine->xdev->datapath_width);
 		return -EINVAL;
 	}
@@ -2146,7 +2146,7 @@ int xdma_performance_submit(struct xdma_engine *engine)
 	engine->transfer.adj_desc_blocks->virtual_addr=dma_pool_zalloc(engine->desc_pool, GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
 	if(engine->transfer.adj_desc_blocks->virtual_addr==NULL)
 	{
-		dbg_sg("Failed to allocate memory from descriptor pool on engune %s\n", engine->name);	
+		dbg_sg("Failed to allocate memory from descriptor pool on engine %s\n", engine->name);	
 		rv=-ENOMEM;	
 		goto free_adj_blocks;
 	}
@@ -2506,7 +2506,7 @@ static int probe_engines(struct xdma_dev *xdev)
 	this allows to correctly calculate max descriptors as well as dynamic allocation*/
 	for(xdev->h2c_channel_num=0; (xdev->h2c_channel_num<XDMA_CHANNEL_NUM_MAX)&&probe_for_engine(xdev, DMA_TO_DEVICE, xdev->h2c_channel_num); ++xdev->h2c_channel_num);
 	
-	xdev->c2h_channel_num = 0;/* set to 0  already hereto allow correct destruction in case of error*/ 
+	xdev->c2h_channel_num = 0;/* set to 0  already here to allow correct destruction in case of error*/ 
 	/* allocate and initialize engines */
 	if(xdev->h2c_channel_num>0)
 	{
@@ -2706,8 +2706,8 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 	dbg_sg("remove(dev = 0x%p) where pdev->dev.driver_data = 0x%p\n", pdev,
 	       xdev);
 	if (xdev->pdev != pdev) {
-		dbg_sg("pci_dev(0x%lx) != pdev(0x%lx)\n",
-		       (unsigned long)xdev->pdev, (unsigned long)pdev);
+		dbg_sg("pci_dev(0x%p) != pdev(0x%p)\n",
+		      xdev->pdev, pdev);
 	}
 
 	channel_interrupts_disable(xdev, ~0);
