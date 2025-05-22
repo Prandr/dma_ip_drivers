@@ -9,6 +9,11 @@ Enable verbose debug messages. Could potentially overflow dmesg.
 POLLING=1
 Enable polling mode instead of interrupts
 
+PREFIX=[name]
+Allows to change the prefix of the device files from "xdma" 
+(which remains default) to one that describes actual function of underlying
+device, like "dsp_processor".
+
 config_bar_num=[num]
 Tell the driver which BAR is used by the XDMA. Default is autodetection by
 probing the BARs, which is performed only when 2 BARs are active. 

@@ -18,6 +18,12 @@
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
+#ifndef XDMA_PREFIX
+#define XDMA_NODE_NAME	"xdma"
+#else 
+#define XDMA_NODE_NAME XDMA_PREFIX
+#endif
+
 
 #include "xdma_cdev.h"
 
