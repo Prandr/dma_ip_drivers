@@ -18,10 +18,23 @@
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
-#ifndef XDMA_PREFIX
-#define XDMA_NODE_NAME	"xdma"
-#else 
-#define XDMA_NODE_NAME XDMA_PREFIX
+
+
+#ifdef XDMA_HIERARCHICAL_DEVICES
+	#define XDMA_NAME_SEPARATOR "/"
+	#ifndef XDMA_PREFIX
+		#define XDMA_NODE_NAME	"xdma/"
+	#else 
+		#define XDMA_NODE_NAME XDMA_PREFIX "/"
+	#endif
+
+#else
+	#define XDMA_NAME_SEPARATOR "_"
+	#ifndef XDMA_PREFIX
+		#define XDMA_NODE_NAME	"xdma"
+	#else 
+		#define XDMA_NODE_NAME XDMA_PREFIX
+	#endif
 #endif
 
 
@@ -31,15 +44,15 @@ static struct class *g_xdma_class;
 
 
 static const char * const devnode_names[] = {
-	XDMA_NODE_NAME "%d_user",
-	XDMA_NODE_NAME "%d_control",
-	XDMA_NODE_NAME "%d_xvc",
-	XDMA_NODE_NAME "%d_events_%d",
-	XDMA_NODE_NAME "%d_h2c_%d",
-	XDMA_NODE_NAME "%d_c2h_%d",
-	XDMA_NODE_NAME "%d_bypass_h2c_%d",
-	XDMA_NODE_NAME "%d_bypass_c2h_%d",
-	XDMA_NODE_NAME "%d_bypass",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "user",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "control",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "xvc",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "events_%d",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "h2c_%d",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "c2h_%d",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "bypass_h2c_%d",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "bypass_c2h_%d",
+	XDMA_NODE_NAME "%d" XDMA_NAME_SEPARATOR "bypass",
 };
 
 enum xpdev_flags_bits {
