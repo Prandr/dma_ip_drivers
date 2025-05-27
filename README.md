@@ -1,4 +1,14 @@
 # Xilinx DMA IP Reference drivers
+## Xilinx DMA (XDMA)
+
+The driver for XDMA that was reworked from ground up is released publicly under FOSS priciple of _mutual_ benefit and cooperation. Please, be aware that **neither me nor my employer are in any way associated or affiliated with Advanced Micro Devices, Inc (formerly Xilinx, Inc).** Therefore, *demands* of support would serve no purpose, because you shouldn't regard yourself a customer. Instead regard yourself a member of an interest group, that has a need for high-speed communication over PCI-E between an FPGA and a host and wishes to use XDMA for that purpose. You are welcome to try and use the reworked driver, but be also encouraged provide feedback and otherwise contribute any way you feel capable.
+
+This software is not guaranteed to be free of errors. Take a note of the disclaimer on top of each source file. You should thoroughly test before put it in operation, especially in safety or mission-critical applications. **Please carefully read the [README](./XDMA/linux-kernel/readme.md) before using the driver**
+
+Issues are only for reports and discussion of the problems. Anything else: general feedback and discusssions, ideas and question should be posted in Discussions.
+
+The drivers mentioned below are retained for repo consistency, but otherwise stale.
+
 
 ## Xilinx QDMA
 

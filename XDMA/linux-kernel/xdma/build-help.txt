@@ -17,12 +17,12 @@ probing by the driver.
 
 h2c_timeout=[x]
 Timeout in ms for H2C DMA interfaces. Default is 5 s.
-0 causes ~50 day timeout interrupt mode and indefinite wait in polling mode.
+0 causes ~50 day timeout in interrupt mode and indefinite wait in polling mode.
 
 
 c2h_timeout=[x]
 Timeout in ms for C2H DMA interfaces. Default is 5 s.
-0 causes ~50 day timeout interrupt mode and indefinite wait in polling mode.
+0 causes ~50 day timeout in interrupt mode and indefinite wait in polling mode.
 
 c2h_credits=[x]
 Enable credits for C2H DMA interfaces. Which set x credits for each transfer.
