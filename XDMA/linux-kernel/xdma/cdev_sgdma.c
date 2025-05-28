@@ -75,21 +75,11 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 }
 
 
-static ssize_t char_sgdma_write(struct file *filp, const char __user *buf,
-		size_t count, loff_t *pos)
-{
-	return char_sgdma_read_write(filp, buf, count, pos);
-}
-
 static ssize_t char_sgdma_read(struct file *filp, char __user *buf,
 				size_t count, loff_t *pos)
 {
 	return char_sgdma_read_write(filp, buf, count, pos);
 }
-
-
-
-
 
 static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 {
@@ -351,7 +341,7 @@ static const struct file_operations sgdma_fops = {
 	.owner = THIS_MODULE,
 	.open = char_sgdma_open,
 	.release = char_sgdma_close,
-	.write = char_sgdma_write,
+	.write = char_sgdma_read_write,
 	.read = char_sgdma_read,
 	.unlocked_ioctl = char_sgdma_ioctl,
 	.llseek = char_llseek,
