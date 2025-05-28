@@ -22,7 +22,7 @@ the MRRS is 1024 bytes.
 - The memory for engines is allocated dynamically, which saves a little bit of 
 kernel memory.
 
-In order to achieve these goals the driver has following limitations and therefore,
+In order to achieve these goals the driver has following limitations and for this reason
 won't be submitted as PR:
 - Removed transfer queues and support for asynchronous I/O. Allegedly it is
 broken, and almost noone uses it anyway.
@@ -35,9 +35,11 @@ This reworked version includes my PRs (in stable form) as well as relevant PRs b
 full anyway).
 
 ### Other features
-- Reworked poll mode as compile-only option
-- Reworked ioctl functions. Added ability to submit transfer request over ioctl. This is
-primarily intended to circumvent 2 GB limit for read and write operations in Linux.
+- Reworked poll mode as compile-only option. Everything gets done in a single thread, 
+so there are no core migrations or context switches.
+- Reworked `ioctl` operations. Added ability to submit transfer request over ioctl. This is
+primarily intended to circumvent 2 GB limit for read and write operations in Linux. 
+The `xdma_ioctl.h` header is installed system-wide.
 - Reworked bypass BAR. It is now properly implemented, so it is possible to transmit 
 data on it. It could be useful for small transfers, that require low and stable latency. 
 See [bypass BAR](./docs/bypass_bar.md) for more detailed information. It is faster 
@@ -64,7 +66,8 @@ adjacent block of descriptors, which still way larger than the old driver thanks
 merging. The workaround could be to execute transfer block-by-block and could be 
 implemented if proven in demand. I will try to raise the issue with AMD.
 -  The latency of XDMA may vary due to the kernel API functions that may sleep 
-(for example memory allocation with kmalloc), therefore it is **not** RT capable.
+(for example memory allocation with kmalloc), therefore it is **not** RT capable. Consider
+to use bypass BAR for such application.
 ### Changes in behaviour over mainline driver
 - The driver strictly enforces appropriate access om DMA devices. For example, it is not 
 possible to use `pwrite` on an AXI-Stream interface.
@@ -75,9 +78,12 @@ descriptors and if so it waits a further period, to give a transfer chance to co
 - Default timeout is reduced to 5 ms.
 
 ### Where can programming guides and examples be found?
-Check the [XDMA Communication tutorial](https://github.com/mwrnd/notes/tree/main/XDMA_Communication) by mwrnd. For the most part it applies to this version of the driver as well.
+Check the 
+[XDMA Communication tutorial](https://github.com/mwrnd/notes/tree/main/XDMA_Communication)
+by mwrnd. For the most part it applies to this version of the driver as well.
 ## What about the in-tree XDMA driver?
 The in-tree driver seem not to have device file interface and is available only since
 version 6.3, while we needed the driver for an earlier version. There is some
-(independent) overlap in implementatio like using DMA pools for descriptors, but I am not
-aware, if that driver performs any merging address ranges.
+(independent) overlap in implementation like using DMA pools for descriptors and
+completions for waiting, but I am not aware, if that driver performs any merging address 
+ranges.
