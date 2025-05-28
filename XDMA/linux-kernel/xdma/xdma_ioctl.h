@@ -113,7 +113,7 @@ enum xdma_transfer_mode
 (XDMA_IOCTL_SUBMIT_TRANSFER ioctl operation */
 struct xdma_transfer_request {
 /*Pointer to buffer in user space*/
-	char *buf;
+	const char *buf;
 /*Size of the buffer == Length of the transfer
 After the transfer it holds minimal amount of 
 transmitted data*/ 

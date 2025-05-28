@@ -176,10 +176,10 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 	/*we already checked the access*/
 	rv=__get_user( engine->transfer_params.buf, &(user_transfer_request->buf));
 	if (unlikely(rv<0))
-			goto exit;
-		rv=__get_user( engine->transfer_params.length, &(user_transfer_request->length));
+		goto exit;
+	rv=__get_user( engine->transfer_params.length, &(user_transfer_request->length));
 	if (unlikely(rv<0))
-			goto exit;
+		goto exit;
 	/*                 \/ avoids compiler warning*/
 	rv=access_assert((char*) engine->transfer_params.buf, engine->transfer_params.length);
 	if (unlikely(rv<0))
