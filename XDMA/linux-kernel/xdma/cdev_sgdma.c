@@ -192,14 +192,14 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 	{
 		rv=__get_user( engine->transfer_params.ep_addr, &(user_transfer_request->axi_address));
 		if (unlikely(rv<0))
-				goto exit;
+			goto exit;
 	}
-#ifdef ___LIBXDMA_DEBUG__
+#ifdef __LIBXDMA_DEBUG__
 	engine->transfer_params.dir= (transfer_mode==XDMA_H2C) ? DMA_TO_DEVICE: DMA_FROM_DEVICE;
 #endif
 	transfer_res=xdma_xfer_submit(engine);
 	
-	if(transfer_res<0)
+	if(unlikely(transfer_res<0))
 	{
 		rv=__put_user( 0, &(user_transfer_request->length));
 		if (unlikely(rv<0))
