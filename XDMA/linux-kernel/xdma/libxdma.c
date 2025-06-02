@@ -70,8 +70,6 @@ MODULE_PARM_DESC(c2h_timeout_ms, "C2H sgdma timeout in milliseconds, default is 
 
 
 
-#define XDMA_PERF_NUM_DESC 128
-
 #define const_cast(type, var) *((type*) &(var))
 
 #if !LINUX_VERSION_CHECK(4,13,0)

@@ -41,9 +41,6 @@
 /* maximum amount of register space to map */
 #define XDMA_BAR_SIZE (0x8000U)
 
-/* Use this definition to poll several times between calls to schedule */
-#define NUM_POLLS_PER_SCHED 100
-
 #define XDMA_CHANNEL_NUM_MAX (4)
 /*
  * interrupts per engine, rad2_vul.sv:237
@@ -157,9 +154,6 @@
 #define XDMA_ID_H2C 0x1fc0U
 #define XDMA_ID_C2H 0x1fc1U
 
-/* for C2H AXI-ST mode */
-#define CYCLIC_RX_PAGES_MAX	256
-
 #define LS_BYTE_MASK 0x000000FFU
 
 #define BLOCK_ID_MASK 0xFFF00000
@@ -170,11 +164,8 @@
 
 #define WB_COUNT_MASK 0x00ffffffU
 #define WB_ERR_MASK (1U << 31)
-#define POLL_TIMEOUT_SECONDS 10
 
 #define MAX_USER_IRQ 16
-
-#define MAX_DESC_BUS_ADDR (0xffffffffULL)
 
 #define DESC_MAGIC 0xAD4B0000U
 #define DESC_ADJ_SHIFT 8
@@ -268,20 +259,6 @@ static inline int __access_assert(void __user *ptr, unsigned long size, const ch
 #define access_assert(ptr, size) __access_assert(ptr, size, #ptr, __func__)
 
 /* SECTION: Enum definitions */
-enum transfer_state {
-	TRANSFER_STATE_NEW = 0,
-	TRANSFER_STATE_SUBMITTED,
-	TRANSFER_STATE_COMPLETED,
-	TRANSFER_STATE_FAILED,
-	TRANSFER_STATE_ABORTED
-};
-
-enum shutdown_state {
-	ENGINE_SHUTDOWN_NONE = 0,	/* No shutdown in progress */
-	ENGINE_SHUTDOWN_REQUEST = 1,	/* engine requested to shutdown */
-	ENGINE_SHUTDOWN_IDLE = 2	/* engine has shutdown and is idle */
-};
-
 enum dev_capabilities {
 	CAP_64BIT_DMA = 2,
 	CAP_64BIT_DESC = 4,
