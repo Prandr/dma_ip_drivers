@@ -73,6 +73,13 @@ to use bypass BAR for such application.
 possible to use `pwrite` on an AXI-Stream interface.
 - Non-incremental (fixed) address mode can be also set by O_TRUNC flag while opening a 
 MM XDMA device.
+- The driver strives to conform to standard behavior of write and read operations, which 
+states that in case operation times out or gets interrupted by a signal, it should return 
+the amount of read or written bytes, unless no data could be processed. Therefore, it
+returns the number of bytes of the completed descriptors. The actual transmitted data is 
+likely larger than that, but unfortunately, there is no way for driver to find out exact
+amount of transmitted data, therefore the data in the last incomplete descriptor is as good
+as lost, unless you have means to differentiate between good and nonsense values.
 - In case of timeout, driver checks first, if some progress has been made in terms of 
 descriptors and if so it waits a further period, to give a transfer chance to complete.
 - Default timeout is reduced to 5 ms.
