@@ -1700,7 +1700,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 										
 			dbg_sg("SG entries:\n");
 			/*merge entries that are contiguous in DMA (bus) address space*/
-			while((processed_sg_entries < sg_nents) && ((sg_prev==NULL) || ((sg_dma_address(sg_prev)+sg_dma_len(sg_prev))==sg_dma_address(sg_iter))) )
+			while((processed_sg_entries < sg_nents))
 			{
 				desc_length_accum+=sg_dma_len(sg_iter);
 				if(likely(desc_length_accum<=XDMA_DESC_BLEN_MAX))
@@ -1711,6 +1711,8 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 					++processed_sg_entries;
 					sg_prev=sg_iter;
 					sg_iter=sg_next(sg_iter);
+					if((sg_iter!=NULL) &&((sg_dma_address(sg_prev)+sg_dma_len(sg_prev))!=sg_dma_address(sg_iter)))
+						break;
 				}
 				else 
 					break;
