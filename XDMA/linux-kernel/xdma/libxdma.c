@@ -1362,7 +1362,7 @@ static void engine_free_resource(struct xdma_engine *engine)
 	 
 #ifdef XDMA_POLL_MODE
         dma_free_coherent( &(engine->xdev->pdev->dev), engine->poll_mode_wb.length, 
-        		engine->poll_mode_wb.virtual_addr, engine->poll_mode_wb.dma_addr);
+        		(void *) engine->poll_mode_wb.virtual_addr, engine->poll_mode_wb.dma_addr);
 #endif
 }
 
@@ -1927,7 +1927,6 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 	If so wait longer for a timeout period to allow transfer to proceed*/
 static long xdma_wait_for_transfer(struct xdma_engine *engine)
 {
-	long rv;
 	u32 last_completed_descriptors=0;
 	unsigned int timeout=(engine->dir==DMA_TO_DEVICE)? h2c_timeout_ms: c2h_timeout_ms;
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
@@ -1964,7 +1963,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	return -ERESTARTSYS;
 	
 #else/* wait for interrupt with completion*/
-	
+	long rv;
 	while((rv=wait_for_completion_interruptible_timeout( &(engine->engine_compl), timeout_jiffies))==0)
 	{
 		u32 current_completed_descriptors=ioread32( &(engine->regs->completed_desc_count));
