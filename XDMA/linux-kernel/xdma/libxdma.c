@@ -2817,7 +2817,7 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 	}
 
 	/* re-write the interrupt table */
-#ifndef XDMA_POLL_PODE
+#ifndef XDMA_POLL_MODE
 	irq_setup(xdev, pdev);
 
 	channel_interrupts_enable(xdev, xdev->mask_irq_h2c | xdev->mask_irq_c2h);
