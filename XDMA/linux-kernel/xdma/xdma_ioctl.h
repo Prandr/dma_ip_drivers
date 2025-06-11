@@ -21,11 +21,12 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #ifndef __KERNEL__
+#include <stddef.h>
 #include <stdint.h>
-#endif
+#include <sys/types.h>
+#else
 #include <linux/ioctl.h>
-
-
+#endif
 
 
 
