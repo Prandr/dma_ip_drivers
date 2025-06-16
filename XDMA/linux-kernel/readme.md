@@ -39,19 +39,23 @@ full anyway).
 so there are no core migrations or context switches.
 - Reworked `ioctl` operations. Added ability to submit transfer request over ioctl. This is
 primarily intended to circumvent 2 GB limit for read and write operations in Linux. 
-The `xdma_ioctl.h` header is installed system-wide.
+The `xdma_ioctl.h` header is installed system-wide and thus can be simply included with
+```
+#include <xdma_ioctl.h>
+```
 - Reworked bypass BAR. It is now properly implemented, so it is possible to transmit 
 data on it. It could be useful for small transfers, that require low and stable latency. 
 See [bypass BAR](./docs/bypass_bar.md) for more detailed information. It is faster 
 (on 64-byte systems significantly) than over user BAR.
 
-Refer to [build help](./xdma/build-help.txt) or run `make help` for available 
-configuration options.
+- Many build options availible. It is highly recommended to refer to 
+[build help](./xdma/build-help.txt) or  to run `make help` for available configuration 
+options. There is a good chance that you find something useful.
 
-Descriptor bypass is NOT supported and won't be until solutions for following obstacles 
+- Descriptor bypass is NOT supported and won't be until solutions for following obstacles 
 are devised:
-- There is no way for driver to figure out, if descriptor bypass was selected for a channel
-- How the logic on FPGA is supposed to learn the DMA Addresses on the host?
+    - There is no way for driver to figure out, if descriptor bypass was selected for a channel
+    - How the logic on FPGA is supposed to learn the DMA Addresses on the host?
 
 ### Known issues
 - I have no ability to test on different kernel versions. That is why the driver may fail 
@@ -69,8 +73,13 @@ implemented if proven in demand. I will try to raise the issue with AMD.
 (for example memory allocation with kmalloc), therefore it is **not** RT capable. Consider
 to use bypass BAR for such application.
 ### Changes in behaviour over mainline driver
-- The driver strictly enforces appropriate access om DMA devices. For example, it is not 
-possible to use `pwrite` on an AXI-Stream interface.
+- The driver strictly enforces appropriate access for XDMA devices. In particular:
+    1. H2C XDMA devices can be opened only for writing (with `O_WRONLY`) 
+    and C2H devices only for reading (with `O_RDONLY`).
+    2. Each DMA device can be opened only once at a time
+    3. Sensibly, it is impossible to write to a C2H device or read from an H2C device.
+    But the checks are performed on the OS level thanks to the f_mode flags.
+    4. It is not possible to use `pwrite`, `pread` or `llseek` on AXI-Stream DMA interfaces. 
 - Non-incremental (fixed) address mode can be also set by O_TRUNC flag while opening a 
 MM XDMA device.
 - The driver strives to conform to standard behavior of write and read operations, which 
