@@ -44,72 +44,12 @@ MODULE_LICENSE("Dual BSD/GPL");
 static int xpdev_cnt;
 
 static const struct pci_device_id pci_ids[] = {
-	{ PCI_DEVICE(0x10ee, 0x9048), },
-	{ PCI_DEVICE(0x10ee, 0x9044), },
-	{ PCI_DEVICE(0x10ee, 0x9042), },
-	{ PCI_DEVICE(0x10ee, 0x9041), },
-	{ PCI_DEVICE(0x10ee, 0x903f), },
-	{ PCI_DEVICE(0x10ee, 0x9038), },
-	{ PCI_DEVICE(0x10ee, 0x9028), },
-	{ PCI_DEVICE(0x10ee, 0x9018), },
-	{ PCI_DEVICE(0x10ee, 0x9034), },
-	{ PCI_DEVICE(0x10ee, 0x9024), },
-	{ PCI_DEVICE(0x10ee, 0x9014), },
-	{ PCI_DEVICE(0x10ee, 0x9032), },
-	{ PCI_DEVICE(0x10ee, 0x9022), },
-	{ PCI_DEVICE(0x10ee, 0x9012), },
-	{ PCI_DEVICE(0x10ee, 0x9031), },
-	{ PCI_DEVICE(0x10ee, 0x9021), },
-	{ PCI_DEVICE(0x10ee, 0x9011), },
-
-	{ PCI_DEVICE(0x10ee, 0x8011), },
-	{ PCI_DEVICE(0x10ee, 0x8012), },
-	{ PCI_DEVICE(0x10ee, 0x8014), },
-	{ PCI_DEVICE(0x10ee, 0x8018), },
-	{ PCI_DEVICE(0x10ee, 0x8021), },
-	{ PCI_DEVICE(0x10ee, 0x8022), },
-	{ PCI_DEVICE(0x10ee, 0x8024), },
-	{ PCI_DEVICE(0x10ee, 0x8028), },
-	{ PCI_DEVICE(0x10ee, 0x8031), },
-	{ PCI_DEVICE(0x10ee, 0x8032), },
+	
 	{ PCI_DEVICE(0x10ee, 0x8034), },
-	{ PCI_DEVICE(0x10ee, 0x8038), },
-
-	{ PCI_DEVICE(0x10ee, 0x7011), },
-	{ PCI_DEVICE(0x10ee, 0x7012), },
-	{ PCI_DEVICE(0x10ee, 0x7014), },
-	{ PCI_DEVICE(0x10ee, 0x7018), },
-	{ PCI_DEVICE(0x10ee, 0x7021), },
-	{ PCI_DEVICE(0x10ee, 0x7022), },
-	{ PCI_DEVICE(0x10ee, 0x7024), },
-	{ PCI_DEVICE(0x10ee, 0x7028), },
-	{ PCI_DEVICE(0x10ee, 0x7031), },
-	{ PCI_DEVICE(0x10ee, 0x7032), },
-	{ PCI_DEVICE(0x10ee, 0x7034), },
-	{ PCI_DEVICE(0x10ee, 0x7038), },
-
-	{ PCI_DEVICE(0x10ee, 0x6828), },
-	{ PCI_DEVICE(0x10ee, 0x6830), },
-	{ PCI_DEVICE(0x10ee, 0x6928), },
-	{ PCI_DEVICE(0x10ee, 0x6930), },
-	{ PCI_DEVICE(0x10ee, 0x6A28), },
-	{ PCI_DEVICE(0x10ee, 0x6A30), },
-	{ PCI_DEVICE(0x10ee, 0x6D30), },
-
-	{ PCI_DEVICE(0x10ee, 0x4808), },
-	{ PCI_DEVICE(0x10ee, 0x4828), },
-	{ PCI_DEVICE(0x10ee, 0x4908), },
-	{ PCI_DEVICE(0x10ee, 0x4A28), },
-	{ PCI_DEVICE(0x10ee, 0x4B28), },
-
-	{ PCI_DEVICE(0x10ee, 0x2808), },
-
-#ifdef INTERNAL_TESTING
-	{ PCI_DEVICE(0x1d0f, 0x1042), 0},
+#if defined (XDMA_VENDOR_ID) && defined (XDMA_DEVICE_ID)
+	{ PCI_DEVICE(XDMA_VENDOR_ID, XDMA_DEVICE_ID), },
 #endif
-	/* aws */
-	{ PCI_DEVICE(0x1d0f, 0xf000), },
-	{ PCI_DEVICE(0x1d0f, 0xf001), },
+
 
 	{0,}
 };

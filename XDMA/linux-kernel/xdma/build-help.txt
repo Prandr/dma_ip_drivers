@@ -20,6 +20,12 @@ overview thus putting them into hierarchy. Particularly useful in case of
 multiple physical devices on the same host. Default is old naming convention
 to keep backward compatibility.
 
+VENDOR_ID=[num], DEVICE_ID=[num]
+The options allow to set custom PCI vendor and device IDs and must be used
+together to have an effect. 0x10ee, 0x8034, which are default IP Core values
+are still recognized, but only for development, testing and prototyping 
+purposes. 
+
 config_bar_num=[num]
 Tell the driver which BAR is used by the XDMA. Default is autodetection by
 probing the BARs, which is performed only when 2 BARs are active. 
