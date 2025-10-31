@@ -2039,8 +2039,8 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 	{
 		unsigned int i=0;
 		for(; (i <transfer->num_adj_blocks)&& (transfer->adj_desc_blocks[i].length>0); ++i)
-			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].virtual_addr,
-					 transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].dma_addr);
+			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[i].virtual_addr,
+					 transfer->adj_desc_blocks[i].dma_addr);
 	}
 	
 	if(transfer->cleanup_flags & XFER_FLAG_DMA_RECORD_ALLOC)
