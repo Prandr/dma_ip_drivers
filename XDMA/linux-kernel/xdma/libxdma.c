@@ -505,6 +505,14 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	ch_irq = read_register(&irq_regs->channel_int_request);
 	dbg_irq("ch_irq = 0x%08x\n", ch_irq);
 
+	/*
+	 * disable all interrupts that fired; these are re-enabled individually
+	 * after the causing module has been fully serviced.
+	 */
+	if (ch_irq) {
+		channel_interrupts_disable(xdev, ch_irq);
+	}
+
 
 	/* read user interrupts  */
 	user_irq = read_register(&irq_regs->user_int_request);
@@ -1992,9 +2000,6 @@ static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 
 
 static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transfer_result)
 {
-#ifndef XDMA_POLL_MODE
-	channel_interrupts_disable(engine->xdev, engine->irq_bitmask);
-#endif
 	if(transfer_result >0)/*interrupt was recieved*/
 	{
 		u32 status=ioread32( &(engine->regs->status_rc));
