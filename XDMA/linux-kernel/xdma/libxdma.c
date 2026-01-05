@@ -614,6 +614,7 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 
 	xdma_debug_assert_msg(xdev!=NULL, "Invalid XDMA device\n", IRQ_NONE);
 
+	channel_interrupts_disable(xdev, engine->irq_bitmask);
 
 	complete(&(engine->engine_compl));
 
