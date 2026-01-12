@@ -53,7 +53,7 @@ static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 
 
 	/*sanity checks for offsets*/
-	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
+	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1, count);
 	if (unlikely(rc < 0))
 		return rc;	
 
@@ -105,7 +105,7 @@ static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 		
 
 	/*sanity checks for offsets*/
-	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1);
+	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1, count);
 	if (unlikely(rc < 0))
 		return rc;
 	

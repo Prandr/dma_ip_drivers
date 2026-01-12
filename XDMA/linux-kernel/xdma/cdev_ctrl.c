@@ -41,7 +41,7 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 		return rv;
 	xdev = xcdev->xdev;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4, count);
 	if (rv < 0)
 		return rv;
 	/* first address is BAR base plus file position offset */
@@ -72,7 +72,7 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 		return rv;
 	xdev = xcdev->xdev;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4, count);
 	if (rv < 0)
 		return rv;
 

@@ -37,8 +37,8 @@ int xdma_cdev_init(void);
 int char_open(struct inode *inode, struct file *filp);
 loff_t char_llseek(struct file *filp, loff_t off, int whence);
 int char_close(struct inode *inode, struct file *filp);
+int position_check(resource_size_t max_pos, loff_t pos, loff_t align, size_t length);
 
-int position_check(resource_size_t max_pos, loff_t pos, loff_t align);
 void cdev_ctrl_init(struct xdma_cdev *xcdev);
 void cdev_xvc_init(struct xdma_cdev *xcdev);
 void cdev_event_init(struct xdma_cdev *xcdev);

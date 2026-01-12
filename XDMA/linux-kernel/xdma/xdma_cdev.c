@@ -169,16 +169,16 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 }
 #endif
 //implementation of common sanity checks for file offset (position)
-int position_check(resource_size_t max_pos, loff_t pos, loff_t align)
+int position_check(resource_size_t max_pos, loff_t pos, loff_t align, size_t length)
 {
 	if (unlikely(pos < 0))
 	{	
 		pr_err("Negative address %lld\n", pos);
 		return -EINVAL;
 	}
-	if (unlikely((resource_size_t) pos >= max_pos))
+	if (unlikely((resource_size_t) pos + length > max_pos))
 	{
-		pr_err("Attempted to access address 0x%llx (%lld) that exceeds mapped BAR space size of %llu\n", pos, pos, max_pos);
+		pr_err("Attempted access to address range that exceeds mapped BAR space size of %llu\n", max_pos);
 		return -EFBIG;
 	}
 	if (unlikely(pos & (align - 1)))
