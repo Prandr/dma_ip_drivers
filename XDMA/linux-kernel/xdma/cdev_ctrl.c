@@ -35,13 +35,18 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	void __iomem *reg;
 	u32 w;
 	int rv;
-
+	if (count !=AXILITE_WIDTH)
+	{
+		pr_crit("AXI-Lite presumes %u bytes access\n", AXILITE_WIDTH);
+		return -EPROTO;
+	}
+	
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
 		return rv;
 	xdev = xcdev->xdev;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4, count);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
 	if (rv < 0)
 		return rv;
 	/* first address is BAR base plus file position offset */
@@ -50,12 +55,16 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	w = ioread32(reg);
 	dbg_fops("%s(@%p, count=%zu, pos=%lld) value = 0x%08x\n",
 			__func__, reg, count, *pos, w);
-	rv = copy_to_user(buf, &w, 4);
-	if (rv)
-		dbg_sg("Copy to userspace failed but continuing\n");
+	*pos += AXILITE_WIDTH;
+	/*use simple copy instead of looped copy. safe to cast thanks to length check above*/
+	rv = __put_user(w, (u32 *)buf);
+	if (rv!=0)
+	{
+		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. Read from AXIL-Master failed.\n");
+		return rv;
+	}
 
-	*pos += 4;
-	return 4;
+	return AXILITE_WIDTH;
 }
 
 static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
@@ -67,27 +76,36 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	u32 w;
 	int rv;
 
+	if (count !=AXILITE_WIDTH)
+	{
+		pr_crit("AXI-Lite presumes %u bytes access\n", AXILITE_WIDTH);
+		return -EPROTO;
+	}
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
 		return rv;
 	xdev = xcdev->xdev;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, 4, count);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
 	if (rv < 0)
 		return rv;
 
 	/* first address is BAR base plus file position offset */
 	reg = xdev->bar[xcdev->bar] + *pos;
-	rv = copy_from_user(&w, buf, 4);
-	if (rv)
-		pr_info("copy from user failed %d/4, but continuing.\n", rv);
+	/*use simple copy instead of looped copy. safe to cast thanks to length check above*/
+	rv = __get_user(w, (u32 *)buf);
+	if (rv!=0)
+	{
+		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. Write to AXIL-Master failed.\n");
+		return rv;
+	}
 
 	dbg_sg("%s(0x%08x @%p, count=%zu, pos=%lld)\n",
 			__func__, w, reg, count, *pos);
 	//write_register(w, reg);
 	iowrite32(w, reg);
-	*pos += 4;
-	return 4;
+	*pos += AXILITE_WIDTH;
+	return AXILITE_WIDTH;
 }
 
 static long version_ioctl(struct xdma_cdev *xcdev, void __user *arg)
