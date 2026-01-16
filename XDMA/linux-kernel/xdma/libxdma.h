@@ -519,7 +519,6 @@ struct xdma_dev {
 	const char *mod_name;		/* name of module owning the dev */
 
 	spinlock_t lock;		/* protects concurrent access */
-	volatile unsigned long flags;
 
 	/* PCIe BAR management */
 	void __iomem *bar[XDMA_BAR_NUM];	/* addresses for mapped BARs */

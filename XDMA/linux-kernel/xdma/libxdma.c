@@ -2591,7 +2591,6 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	xdev->h2c_channel_num = *h2c_channel_num;
 	xdev->c2h_channel_num = *c2h_channel_num;
 
-	set_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 
 	if (xdev->user_max == 0 || xdev->user_max > MAX_USER_IRQ)
 		xdev->user_max = MAX_USER_IRQ;
@@ -2672,7 +2671,6 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 	*h2c_channel_num = xdev->h2c_channel_num;
 	*c2h_channel_num = xdev->c2h_channel_num;
 
-	clear_bit(XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 	return (void *)xdev;
 
 err_irq_setup:
@@ -2754,7 +2752,6 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		return;
 
 	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
-	set_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 
 	/* wait for all engines to be idle */
 	for (i = 0; i < xdev->h2c_channel_num; i++) {
@@ -2832,7 +2829,6 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 	read_interrupts(xdev);
 #endif
 
-	clear_bit( XDEV_FLAG_OFFLINE_BIT, &(xdev->flags));
 	pr_info("xdev 0x%p, done.\n", xdev);
 }
 
