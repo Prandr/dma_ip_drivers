@@ -517,9 +517,7 @@ struct xdma_dev {
 	int idx;		/* dev index */
 
 	const char *mod_name;		/* name of module owning the dev */
-
-	spinlock_t lock;		/* protects concurrent access */
-
+	
 	/* PCIe BAR management */
 	void __iomem *bar[XDMA_BAR_NUM];	/* addresses for mapped BARs */
 	resource_size_t bar_size[XDMA_BAR_NUM];		/* mapped size of BARs	*/ 

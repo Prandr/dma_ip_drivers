@@ -2267,8 +2267,7 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		pr_info("OOM, xdma_dev.\n");
 		return NULL;
 	}
-	spin_lock_init(&xdev->lock);
-
+	
 	xdev->magic = MAGIC_DEVICE;
 	xdev->config_bar_idx = -1;
 	xdev->user_bar_idx = -1;
