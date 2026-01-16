@@ -307,7 +307,7 @@ static int char_sgdma_open(struct inode *inode, struct file *filp)
 		nonseekable_open(inode, filp);
 		filp->f_mode &= ~FMODE_ATOMIC_POS;
 	#endif
-		engine->eop_flush=(filp->f_flags& O_TRUNC)? 1: 0;
+		engine->eop_flush=(filp->f_flags& O_TRUNC)? engine->dir==DMA_TO_DEVICE: 0;
 		
 			
 	}else /*MM DMA engine*/
