@@ -2908,7 +2908,7 @@ int xdma_user_isr_disable(void *dev_hndl, unsigned int mask)
 
 void engine_addrmode_set(struct xdma_engine *engine, bool set)
 {
-	u32 w = XDMA_CTRL_NON_INCR_ADDR;
+	const u32 w = XDMA_CTRL_NON_INCR_ADDR;
 	dbg_perf("XDMA_IOCTL_ADDRMODE_SET\n");
 	if(engine->non_incr_addr!=set)
 	{	

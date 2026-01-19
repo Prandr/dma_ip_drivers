@@ -120,7 +120,10 @@ static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 static int ioctl_do_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 {
 	bool set;
-	int rv = get_user(set, (int __user *) arg);
+	int rv;
+	if (unlikely(engine->streaming))
+		return -ENOTSUPP;
+	rv = get_user(set, (bool __user *) arg);
 	if(unlikely(rv<0))
 		return rv;
 	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
@@ -134,12 +137,14 @@ static int ioctl_do_addrmode_get(struct xdma_engine *engine, unsigned long arg)
 {
 	int rv;
 	bool src;
-
+	
 	xdma_debug_assert_ptr(engine);
+	if (unlikely(engine->streaming))
+		return -ENOTSUPP;
 	src = (bool) engine->non_incr_addr;
 
 	dbg_perf("XDMA_IOCTL_ADDRMODE_GET\n");
-	rv = put_user(src, (int __user *)arg);
+	rv = put_user(src, (bool __user *)arg);
 
 	return rv;
 }
@@ -315,7 +320,7 @@ static int char_sgdma_open(struct inode *inode, struct file *filp)
 		if ((ret_val=generic_file_open(inode, filp ))<0)
 			goto not_open;
 		
-		engine_addrmode_set(engine, (filp->f_flags& O_TRUNC)? 1: 0);
+		engine_addrmode_set(engine, (filp->f_flags& O_TRUNC)==O_TRUNC);
 		
 	}
 	print_fmode(filp->f_path.dentry->d_iname, filp->f_mode);
