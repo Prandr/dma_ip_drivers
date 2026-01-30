@@ -292,45 +292,38 @@ static u32 read_interrupts(struct xdma_dev *xdev)
 	return build_u32(hi, lo);
 }
 
-void enable_perf(struct xdma_engine *engine)
+void enable_perf(struct xdma_engine *engine, bool enable)
 {
-	u32 w;
-
-	w = XDMA_PERF_CLEAR;
+	u32 w= enable? XDMA_PERF_AUTO | XDMA_PERF_RUN: XDMA_PERF_CLEAR;
 	write_register(w, &engine->regs->perf_ctrl,
 		       (unsigned long)(&engine->regs->perf_ctrl) -
 			       (unsigned long)(&engine->regs));
-	read_register(&engine->regs->identifier);
-	w = XDMA_PERF_AUTO | XDMA_PERF_RUN;
-	write_register(w, &engine->regs->perf_ctrl,
-		       (unsigned long)(&engine->regs->perf_ctrl) -
-			       (unsigned long)(&engine->regs));
-	read_register(&engine->regs->identifier);
-
-	dbg_perf("XDMA_IOCTL_PERF_START\n");
+	dbg_perf("XDMA_IOCTL_PERF_TEST %s\n", enable? "enabled": "disabled");
 }
 
-void get_perf_stats(struct xdma_engine *engine)
+int get_perf_stats(struct xdma_engine *engine, struct xdma_performance_ioctl *__user user_perf_res)
 {
 	u32 hi;
 	u32 lo;
+	struct xdma_performance_ioctl local_perf_res;
 #ifdef __LIBXDMA_DEBUG__
 	if (!engine) {
 		pr_err("dma engine NULL\n");
-		return;
+		return -EINVAL;
 	}
 #endif
 		
 	hi = read_register(&engine->regs->perf_cyc_hi);
 	lo = read_register(&engine->regs->perf_cyc_lo);
 
-	engine->xdma_perf.clock_cycle_count = build_u64(hi, lo);
+	local_perf_res.clock_cycle_count = build_u64(hi& ~XDMA_PERF_COUNT_OVERFLOW, lo);
+	local_perf_res.clock_count_overflow= !!(hi & XDMA_PERF_COUNT_OVERFLOW);
 
 	hi = read_register(&engine->regs->perf_dat_hi);
 	lo = read_register(&engine->regs->perf_dat_lo);
-	engine->xdma_perf.data_cycle_count = build_u64(hi, lo);
-
-	
+	local_perf_res.data_cycle_count = build_u64(hi & ~XDMA_PERF_COUNT_OVERFLOW, lo);
+	local_perf_res.data_count_overflow = !!(hi & XDMA_PERF_COUNT_OVERFLOW);
+	return copy_to_user(user_perf_res, &local_perf_res, sizeof(struct xdma_performance_ioctl));
 }
 
 
@@ -2116,143 +2109,6 @@ ssize_t xdma_xfer_submit(struct xdma_engine *engine)
 }
 
 
-int xdma_performance_submit(struct xdma_engine *engine)
-{
-	u64 ep_addr = engine->streaming? : engine->xdma_perf.axi_address;
-	int i=0;
-	int rv = 0;
-	struct xdma_desc *current_desc;
-	/*array of DMA records for performance buffers*/
-	generic_dma_record(u8) *perf_bufs=NULL;
-	unsigned int num_bufs= divide_roundup(engine->xdma_perf.transfer_size, KMALLOC_MAX_SIZE);
-	unsigned int next_adj=num_bufs - 1;
-	dma_addr_t desc_dma_addr;
-	if(num_bufs > engine->adj_block_len)
-		return -EFBIG;
-		
-	if(engine->xdma_perf.transfer_size==0 ||
-	engine->xdma_perf.transfer_size & (engine->xdev->datapath_width-1))
-	{
-		pr_err("Invalid performance transfer length. It must be positive and be multiple of datapath width %u\n", 
-			engine->xdev->datapath_width);
-		return -EINVAL;
-	}
-	/*neccessary for correct function of xdma_finalise_transfer*/
-	engine->transfer_params.length=engine->xdma_perf.transfer_size;
-	perf_bufs=kcalloc(num_bufs, sizeof(*perf_bufs), GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-	if (perf_bufs==NULL)
-		return -ENOMEM;
-	/*in order to use xdma_launch_transfer*/
-	engine->transfer.adj_desc_blocks=kzalloc(sizeof( *(engine->transfer.adj_desc_blocks)),
-					 GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-	if(engine->transfer.adj_desc_blocks==NULL)
-	{
-		rv=-ENOMEM;
-		goto free_record;
-	}
-	engine->transfer.adj_desc_blocks->virtual_addr=dma_pool_zalloc(engine->desc_pool, GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
-	if(engine->transfer.adj_desc_blocks->virtual_addr==NULL)
-	{
-		dbg_sg("Failed to allocate memory from descriptor pool on engine %s\n", engine->name);	
-		rv=-ENOMEM;	
-		goto free_adj_blocks;
-	}
-	engine->transfer.adj_desc_blocks->dma_addr=desc_dma_addr;
-	engine->transfer.adj_desc_blocks->length=engine->adj_block_len*sizeof(struct xdma_desc);
-	
-	for(; i<num_bufs; ++i, desc_dma_addr+=sizeof(struct xdma_desc), --next_adj)
-	{
-		unsigned int buf_length= (i==(num_bufs-1))? engine->xdma_perf.transfer_size & (KMALLOC_MAX_SIZE-1) : KMALLOC_MAX_SIZE;
-		current_desc=&(engine->transfer.adj_desc_blocks->virtual_addr[i]);
-		perf_bufs[i].virtual_addr=kmalloc(buf_length, GFP_KERNEL|__GFP_RETRY_MAYFAIL);
-		if(perf_bufs[i].virtual_addr==NULL)
-		{	
-			rv=-ENOMEM;
-			goto unmap_bufs;
-		}
-					
-		perf_bufs[i].dma_addr=dma_map_single( &(engine->xdev->pdev->dev), perf_bufs[i].virtual_addr, buf_length, engine->dir);
-		rv=dma_mapping_error( &(engine->xdev->pdev->dev), perf_bufs[i].dma_addr);
-		if(rv<0)
-		{
-			goto unmap_bufs;		
-		}
-		perf_bufs[i].length=buf_length;
-		
-		current_desc->control= cpu_to_le32(DESC_MAGIC|(next_adj<<DESC_ADJ_SHIFT));/*desc magic and next adjacent*/
-		current_desc->bytes=buf_length;
-		if(engine->dir== DMA_TO_DEVICE)
-		{
-			split_into_val32(perf_bufs[i].dma_addr, current_desc->src_addr_hi,
-					 current_desc->src_addr_lo);
-			if(!engine->streaming)
-			{
-				split_into_val32(ep_addr, current_desc->dst_addr_hi, current_desc->dst_addr_lo);
-			}
-		}
-		else
-		{
-			split_into_val32(perf_bufs[i].dma_addr, current_desc->dst_addr_hi, current_desc->dst_addr_lo);
-			if(!engine->streaming)
-			{
-				split_into_val32(ep_addr, current_desc->src_addr_hi,
-					 current_desc->src_addr_lo);
-			}	
-		}
-		
-		if(i>0) /*link to previuos descriptor*/
-		{		
-			split_into_val32(desc_dma_addr, (current_desc-1)->next_hi, (current_desc-1)->next_lo);
-								
-			dump_desc(current_desc-1);
-		
-			
-		}
-		
-		if(!engine->streaming && !engine->non_incr_addr)
-			ep_addr+=buf_length;
-		
-		
-		
-	}
-	
-	current_desc->control|=(XDMA_DESC_STOPPED|XDMA_DESC_COMPLETED);
-	dump_desc(current_desc);
-	
-	enable_perf(engine);	
-	xdma_launch_transfer(engine);
-	rv=xdma_wait_for_transfer(engine);
-	rv=xdma_finalise_transfer(engine, rv);
-	if(rv!=engine->xdma_perf.transfer_size)
-	{
-		pr_err("Perfomance test failed on engine %s\n", engine->name);
-		if(rv>=0)
-			rv= -EIO;
-		goto unmap_bufs;
-			
-	}
-	get_perf_stats(engine);
-	
-	
-	
-unmap_bufs:/*\/back to last index*/
-	for(--i; i>=0; --i)
-	{
-		if(perf_bufs[i].length>0)
-			dma_unmap_single( &(engine->xdev->pdev->dev), perf_bufs[i].dma_addr,
-					 perf_bufs[i].length, engine->dir);
-		
-		kfree(perf_bufs[i].virtual_addr);
-	
-	}
-	dma_pool_free(engine->desc_pool, engine->transfer.adj_desc_blocks->virtual_addr, 
-				engine->transfer.adj_desc_blocks->dma_addr);
-free_adj_blocks:
-	kfree(engine->transfer.adj_desc_blocks);
-free_record:
-	kfree(perf_bufs);
-	return rv;
-}
 
 static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 {

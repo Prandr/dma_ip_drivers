@@ -147,6 +147,7 @@
 #define XDMA_PERF_RUN	(1U << 0)
 #define XDMA_PERF_CLEAR	(1U << 1)
 #define XDMA_PERF_AUTO	(1U << 2)
+#define XDMA_PERF_COUNT_OVERFLOW (1U<<16)
 
 #define MAGIC_ENGINE	0xEEEEEEEEU
 #define MAGIC_DEVICE	0xDDDDDDDDU
@@ -490,9 +491,6 @@ struct xdma_engine {
 	/* Members associated with interrupt mode support */
 	int msix_irq_line;		/* MSI-X vector for this engine */
 	u32 irq_bitmask;		/* IRQ bit mask for this engine */
-
-	/* for performance test support */
-	struct xdma_performance_ioctl xdma_perf;	/* perf test control */
 };
 
 struct xdma_user_irq {
@@ -566,10 +564,9 @@ int xdma_user_isr_enable(void *dev_hndl, unsigned int mask);
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
 ssize_t xdma_xfer_submit(struct xdma_engine *engine);
-int xdma_performance_submit(struct xdma_engine *engine);
 struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine);
-void enable_perf(struct xdma_engine *engine);
-void get_perf_stats(struct xdma_engine *engine);
+void enable_perf(struct xdma_engine *engine, bool enable);
+int get_perf_stats(struct xdma_engine *engine, struct xdma_performance_ioctl *__user user_perf_res);
 
 void engine_addrmode_set(struct xdma_engine *engine, bool set);
 

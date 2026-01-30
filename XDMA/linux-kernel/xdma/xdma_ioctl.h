@@ -92,19 +92,12 @@ struct xdma_ioc_info {
  /*Operation and structures definitions for XDMA engines*/
  
 /*Structure for performance test 
-(XDMA_IOCTL_PERF_TEST ioctl operation)*/
+(XDMA_IOCTL_PERF_RESULT ioctl operation)*/
 struct xdma_performance_ioctl {
-/*Length of the transfer for the performance test.
-Typically up to 64 MB and must be multiple of datapath width.*/
-	uint32_t transfer_size;
-	/*for MM AXI: AXI address to or from which  the transfer
-	willl be directed. Ignored for AXI-Stream interface.
-	Must be capable to produce or sink transfer_size amount of
-	data*/
-	off_t axi_address;
-	/* measurement */
 	uint64_t clock_cycle_count;
 	uint64_t data_cycle_count;
+	bool clock_count_overflow;
+	bool data_count_overflow;
 };
 
 
@@ -130,7 +123,9 @@ Ignored for AXI Stream interface*/
 };
 /* IOCTL codes */
 /*Do performance measurement test*/
-#define XDMA_IOCTL_PERF_TEST   _IOWR(XDMA_IOC_MAGIC, 1, struct xdma_performance_ioctl )
+#define XDMA_IOCTL_PERF_TEST _IOW(XDMA_IOC_MAGIC, 1, bool)
+/*Retrieve the performance measurement result*/
+#define XDMA_IOCTL_PERF_RESULT   _IOR(XDMA_IOC_MAGIC, 2, struct xdma_performance_ioctl )
 /*Switch between usual (incrementing) address mode [false] and 
 fixed (non-incrementing) [true]*/
 #define XDMA_IOCTL_ADDRMODE_SET _IOW(XDMA_IOC_MAGIC, 4, bool)

@@ -84,33 +84,15 @@ static ssize_t char_sgdma_read(struct file *filp, char __user *buf,
 
 static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 {
-
-	int rv;
-	
+	bool enable;
+	int rv=get_user(enable, (bool __user *) arg);
+	if (rv<0)
+		return rv;
 	xdma_debug_assert_ptr(engine);
-
 	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
 		return -EBUSY;
-	
-	rv = copy_from_user( &(engine->xdma_perf),
-		(struct xdma_performance_ioctl __user *)arg,
-		sizeof(struct xdma_performance_ioctl));
+	enable_perf(engine, enable);
 
-	if (rv < 0) {
-		dbg_perf("Failed to copy from user space 0x%lx\n", arg);
-		goto exit;
-	}
-	
-	dbg_perf("Performance test transfer_size = %u\n", engine->xdma_perf.transfer_size);
-	rv = xdma_performance_submit(engine);
-	if (rv < 0)
-		goto exit;
-	rv = copy_to_user((void __user *)arg, &(engine->xdma_perf),
-			sizeof(struct xdma_performance_ioctl));
-	if (rv<0) 
-		dbg_perf("Error copying result to user\n");
-	
-	exit:
 	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
 	smp_mb__after_atomic();
 	return rv;
@@ -247,6 +229,9 @@ static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 	switch (cmd) {
 	case XDMA_IOCTL_PERF_TEST:
 		rv = ioctl_do_perf_test(engine, arg);
+		break;
+	case XDMA_IOCTL_PERF_RESULT:
+		rv=get_perf_stats(engine, (struct xdma_performance_ioctl *) arg);
 		break;
 	case XDMA_IOCTL_ADDRMODE_SET:
 		rv = ioctl_do_addrmode_set(engine, arg);
