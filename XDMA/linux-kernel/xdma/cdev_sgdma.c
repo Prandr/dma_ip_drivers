@@ -54,7 +54,7 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_engine *engine=xcdev->engine;
 	/*guard against attempts for simultaneous transfer*/
-	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
+	if(xdma_device_test_offline(xcdev->xdev) || test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
 		return -EBUSY;
 	/*just fill transfer params. checks are performed later inside xdma_xfer_submit*/
 	engine->transfer_params.buf=buf;
@@ -225,7 +225,9 @@ static long char_sgdma_ioctl(struct file *filp, unsigned int cmd,
 
 	xdev = xcdev->xdev;
 	engine = xcdev->engine;
-
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
+		
 	switch (cmd) {
 	case XDMA_IOCTL_PERF_TEST:
 		rv = ioctl_do_perf_test(engine, arg);

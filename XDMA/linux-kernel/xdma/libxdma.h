@@ -505,10 +505,10 @@ struct xdma_user_irq {
 };
 
 /* XDMA PCIe device specific book-keeping */
-#define XDEV_FLAG_OFFLINE_BIT	0L
 struct xdma_dev {
 	struct list_head list_head;
 	struct list_head rcu_node;
+	bool offline;
 
 	unsigned int magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
@@ -569,5 +569,14 @@ void enable_perf(struct xdma_engine *engine, bool enable);
 int get_perf_stats(struct xdma_engine *engine, struct xdma_performance_ioctl *__user user_perf_res);
 
 void engine_addrmode_set(struct xdma_engine *engine, bool set);
+static inline void xdma_device_set_offline(struct xdma_dev *xdev, bool set_offline)
+{
+	smp_store_release(&(xdev->offline), set_offline);
+}
+static inline bool xdma_device_test_offline(struct xdma_dev *xdev)
+{
+	return smp_load_acquire(&(xdev->offline));
+}
+
 
 #endif /* XDMA_LIB_H */

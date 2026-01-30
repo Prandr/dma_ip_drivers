@@ -50,7 +50,8 @@ static ssize_t char_bypass_read(struct file *filp, char __user *buf,
 	if (unlikely(rc < 0))
 		return rc;
 	xdev = xcdev->xdev;
-
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
 
 	/*sanity checks for offsets*/
 	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1, count);
@@ -102,7 +103,8 @@ static ssize_t char_bypass_write(struct file *filp, const char __user *buf,
 	if (unlikely(rc < 0))
 		return rc;
 	xdev = xcdev->xdev;
-		
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
 
 	/*sanity checks for offsets*/
 	rc=position_check(xdev->bar_size[xcdev->bar], *pos, 1, count);

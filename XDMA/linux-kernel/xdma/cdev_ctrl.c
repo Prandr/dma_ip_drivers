@@ -45,6 +45,8 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	if (rv < 0)
 		return rv;
 	xdev = xcdev->xdev;
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
 	/*sanity checks for offsets*/
 	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
 	if (rv < 0)
@@ -85,6 +87,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	if (rv < 0)
 		return rv;
 	xdev = xcdev->xdev;
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
 	/*sanity checks for offsets*/
 	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
 	if (rv < 0)
@@ -149,12 +153,12 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	xdev = xcdev->xdev;
 	xdma_debug_assert_ptr(xdev);
-	pr_info("cmd 0x%x, xdev 0x%p, pdev 0x%p.\n", cmd, xdev, xdev->pdev);
+	dbg_fops("cmd 0x%x, xdev 0x%p, pdev 0x%p.\n", cmd, xdev, xdev->pdev);
 
 	xdma_debug_assert_msg(_IOC_TYPE(cmd) == XDMA_IOC_MAGIC, "bad magic.\n", -ENOTTY);
 
-		
-
+	if(xdma_device_test_offline(xdev))
+		return -EBUSY;
 
 	if (access_assert((void __user *)arg, _IOC_SIZE(cmd))<0)
 		return -EFAULT;

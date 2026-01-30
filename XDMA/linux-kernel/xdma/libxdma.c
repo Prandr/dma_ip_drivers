@@ -2549,6 +2549,33 @@ err_alloc_dev_instance:
 	return NULL;
 }
 
+/* wait for all engines to be idle */
+static void wait_for_engines_idle(struct xdma_dev *xdev)
+{
+	struct xdma_engine *engine; 
+	unsigned int i;
+	/*it is best just to wait for engines to finish "naturally" their current transfer*/
+	for (i = 0; i < xdev->h2c_channel_num; i++) {
+		
+		engine = &xdev->engine_h2c[i];
+
+		if (engine->magic == MAGIC_ENGINE) {
+			
+			while(test_bit(XENGINE_BUSY_BIT, &(engine->flags)));
+						
+		}
+	}
+
+	for (i = 0; i < xdev->c2h_channel_num; i++) {
+		
+		engine = &xdev->engine_c2h[i];
+		if (engine->magic == MAGIC_ENGINE) {
+			
+			while(test_bit(XENGINE_BUSY_BIT, &(engine->flags)));
+						
+		}
+	}
+}
 void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 {
 	struct xdma_dev *xdev = (struct xdma_dev *)dev_hndl;
@@ -2567,7 +2594,8 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 		dbg_sg("pci_dev(0x%p) != pdev(0x%p)\n",
 		      xdev->pdev, pdev);
 	}
-
+	xdma_device_set_offline(xdev, true);
+	wait_for_engines_idle(xdev);
 	channel_interrupts_disable(xdev, ~0);
 	user_interrupts_disable(xdev, ~0);
 	read_interrupts(xdev);
@@ -2576,6 +2604,7 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 	disable_msi_msix(xdev, pdev);
 
 	remove_engines(xdev);
+	
 	unmap_bars(xdev, pdev);
 
 	if (xdev->got_regions) {
@@ -2596,9 +2625,6 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 {
 	struct xdma_dev *xdev = (struct xdma_dev *)dev_hndl;
-	struct xdma_engine *engine;
-	int i;
-	int rv;
 
 	if (!dev_hndl)
 		return;
@@ -2608,33 +2634,8 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 
 	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 
-	/* wait for all engines to be idle */
-	for (i = 0; i < xdev->h2c_channel_num; i++) {
-		
-		engine = &xdev->engine_h2c[i];
-
-		if (engine->magic == MAGIC_ENGINE) {
-			
-			rv = xdma_engine_stop(engine);
-			if (rv < 0)
-				pr_err("Failed to stop engine\n");
-			
-		}
-	}
-
-	for (i = 0; i < xdev->c2h_channel_num; i++) {
-		
-		engine = &xdev->engine_c2h[i];
-		if (engine->magic == MAGIC_ENGINE) {
-			
-			/*engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;*/
-
-			rv = xdma_engine_stop(engine);
-			if (rv < 0)
-				pr_err("Failed to stop engine\n");
-			
-		}
-	}
+	xdma_device_set_offline(xdev, true);
+	wait_for_engines_idle(xdev);
 
 	/* turn off interrupts */
 	channel_interrupts_disable(xdev, ~0);
@@ -2676,13 +2677,15 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 	}
 
 	/* re-write the interrupt table */
-#ifndef XDMA_POLL_MODE
-	irq_setup(xdev, pdev);
 
+	irq_setup(xdev, pdev);
+#ifndef XDMA_POLL_MODE	
 	channel_interrupts_enable(xdev, xdev->mask_irq_h2c | xdev->mask_irq_c2h);
+#endif	
 	user_interrupts_enable(xdev, xdev->mask_irq_user);
 	read_interrupts(xdev);
-#endif
+
+	xdma_device_set_offline(xdev, false);
 
 	pr_info("xdev 0x%p, done.\n", xdev);
 }
