@@ -1911,8 +1911,7 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 	
 	if((engine->dir==DMA_FROM_DEVICE)&&(engine->streaming)&&(enable_st_c2h_credit>0))
 		write_register(min_t(unsigned int, enable_st_c2h_credit, XDMA_MAX_C2H_CREDITS), 
-		&(engine->sgdma_regs->credits), 0);
-	reinit_completion(&(engine->engine_compl));	
+		&(engine->sgdma_regs->credits), 0);	
 #ifdef XDMA_POLL_MODE
 	engine->poll_mode_wb.virtual_addr->completed_desc_count=0;
 #endif
@@ -1961,7 +1960,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 				
 		}
 	/*catch signals*/
-	} while(!signal_pending(current));
+	} while(!signal_pending(current) && !((timeout==0)&&xdma_device_test_offline(engine->xdev)));
 	/*like wait for completion*/
 	return -ERESTARTSYS;
 	
@@ -1976,6 +1975,10 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 			break;
 	}
 	dbg_tfr("Wait for completion on engine %s returned %ld\n", engine->name, rv);
+	/*this means that engine was woken up by the wait_for_idle procedure,
+	which is similar to being woken up by a signal*/
+	if(unlikely(engine->engine_compl.done==UINT_MAX))
+		rv= -ERESTARTSYS;
 	
 	return rv;
 #endif
@@ -2081,8 +2084,9 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 	#endif
 	if(transfer->cleanup_flags & XFER_FLAG_PAGES_ALLOC)
 		kvfree(transfer->pages);
-	/*clear for the next transfer*/	
+	/*reinit for the next transfer*/	
 	memset(transfer, 0, sizeof(struct xdma_transfer));
+	reinit_completion(&(engine->engine_compl));
 	
 }
 
@@ -2554,13 +2558,19 @@ static void wait_for_engines_idle(struct xdma_dev *xdev)
 {
 	struct xdma_engine *engine; 
 	unsigned int i;
-	/*it is best just to wait for engines to finish "naturally" their current transfer*/
+	/*it is best just to wait for engines to finish "naturally" their current transfer,
+	but still break indefinite waits*/
 	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		
 		engine = &xdev->engine_h2c[i];
 
 		if (engine->magic == MAGIC_ENGINE) {
-			
+#ifndef XDMA_POLL_MODE   /*marks the completion with UINT_MAX and also ensures that wait queue gets emptied*/
+			if(h2c_timeout_ms==0)
+				complete_all( &(engine->engine_compl));
+#endif	
+/*polling is perhaps not the best way to wait, however there should be very rarely a need for that.
+It should break immediately in normal operation, therefore acceptable.*/ 
 			while(test_bit(XENGINE_BUSY_BIT, &(engine->flags)));
 						
 		}
@@ -2570,7 +2580,10 @@ static void wait_for_engines_idle(struct xdma_dev *xdev)
 		
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
-			
+#ifndef XDMA_POLL_MODE
+			if(c2h_timeout_ms==0)
+				complete_all( &(engine->engine_compl));
+#endif	
 			while(test_bit(XENGINE_BUSY_BIT, &(engine->flags)));
 						
 		}
@@ -2632,7 +2645,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	if (debug_check_dev_hndl(__func__, pdev, dev_hndl) < 0)
 		return;
 
-	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
+	pr_crit("XDMA%i goes offline... ", xdev->idx);
 
 	xdma_device_set_offline(xdev, true);
 	wait_for_engines_idle(xdev);
@@ -2643,7 +2656,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	read_interrupts(xdev);
 	irq_teardown(xdev);
 
-	pr_info("xdev 0x%p, done.\n", xdev);
+	pr_cont("done.\n");
 }
 
 void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
@@ -2658,12 +2671,13 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 	if (debug_check_dev_hndl(__func__, pdev, dev_hndl) < 0)
 		return;
 
-	pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
+	pr_info("XDMA%i goes back online... ", xdev->idx);
 
 	for (i = 0; i < xdev->h2c_channel_num; i++) {
 		engine = &xdev->engine_h2c[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			engine_init_regs(engine);
+			reinit_completion(&(engine->engine_compl));
 
 		}
 	}
@@ -2687,7 +2701,7 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 
 	xdma_device_set_offline(xdev, false);
 
-	pr_info("xdev 0x%p, done.\n", xdev);
+	pr_cont(" done.\n");
 }
 
 int xdma_device_restart(struct pci_dev *pdev, void *dev_hndl)
