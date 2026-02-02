@@ -231,6 +231,7 @@ static void check_nonzero_interrupt_status(struct xdma_dev *xdev)
 			dev_name(&xdev->pdev->dev), xdev->idx, w);
 }
 
+#ifndef XDMA_POLL_MODE
 /* channel_interrupts_enable -- Enable interrupts we are interested in */
 static void channel_interrupts_enable(struct xdma_dev *xdev, u32 mask)
 {
@@ -240,7 +241,7 @@ static void channel_interrupts_enable(struct xdma_dev *xdev, u32 mask)
 
 	write_register(mask, &reg->channel_int_enable_w1s, XDMA_OFS_INT_CTRL);
 }
-
+#endif
 /* channel_interrupts_disable -- Disable interrupts we not interested in */
 static void channel_interrupts_disable(struct xdma_dev *xdev, u32 mask)
 {
