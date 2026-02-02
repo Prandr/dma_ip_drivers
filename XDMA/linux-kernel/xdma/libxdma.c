@@ -2687,6 +2687,7 @@ void xdma_device_online(struct pci_dev *pdev, void *dev_hndl)
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
 			engine_init_regs(engine);
+			reinit_completion(&(engine->engine_compl));
 
 		}
 	}
