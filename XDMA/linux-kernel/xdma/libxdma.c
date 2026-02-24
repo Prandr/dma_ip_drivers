@@ -241,7 +241,7 @@ static void channel_interrupts_enable(struct xdma_dev *xdev, u32 mask)
 
 	write_register(mask, &reg->channel_int_enable_w1s, XDMA_OFS_INT_CTRL);
 }
-#endif
+
 /* channel_interrupts_disable -- Disable interrupts we not interested in */
 static void channel_interrupts_disable(struct xdma_dev *xdev, u32 mask)
 {
@@ -251,7 +251,7 @@ static void channel_interrupts_disable(struct xdma_dev *xdev, u32 mask)
 
 	write_register(mask, &reg->channel_int_enable_w1c, XDMA_OFS_INT_CTRL);
 }
-
+#endif
 /* user_interrupts_enable -- Enable interrupts we are interested in */
 static void user_interrupts_enable(struct xdma_dev *xdev, u32 mask)
 {
@@ -477,8 +477,7 @@ static irqreturn_t user_irq_service(int irq, struct xdma_user_irq *user_irq)
  */
 static irqreturn_t xdma_isr(int irq, void *dev_id)
 {
-	u32 ch_irq;
-	u32 user_irq;
+	u32 irq_readout;
 	u32 mask;
 	struct xdma_dev *xdev;
 	struct interrupt_regs *irq_regs;
@@ -495,74 +494,76 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	irq_regs = (struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
 					     XDMA_OFS_INT_CTRL);
 
-	/* read channel interrupt requests */
-	ch_irq = read_register(&irq_regs->channel_int_request);
-	dbg_irq("ch_irq = 0x%08x\n", ch_irq);
-
-	/*
-	 * disable all interrupts that fired; these are re-enabled individually
-	 * after the causing module has been fully serviced.
-	 */
-	if (ch_irq) {
-		channel_interrupts_disable(xdev, ch_irq);
-	}
 
 
 	/* read user interrupts  */
-	user_irq = read_register(&irq_regs->user_int_request);
-	dbg_irq("user_irq = 0x%08x\n", user_irq);
+	irq_readout = read_register(&irq_regs->user_int_request);
+	dbg_irq("user_irq = 0x%08x\n", irq_readout);
 
-	if (user_irq) {
+	if (irq_readout) {
 		int user = 0;
-		u32 mask = 1;
 		int max = xdev->user_max;
+		mask = 1;
 
-		for (; user < max && user_irq; user++, mask <<= 1) {
-			if (user_irq & mask) {
-				user_irq &= ~mask;
+		for (; user < max && irq_readout; user++, mask <<= 1) {
+			if (irq_readout & mask) {
+				irq_readout &= ~mask;
 				user_irq_service(irq, &xdev->user_irq[user]);
 			}
 		}
 	}
 
-	mask = ch_irq & xdev->mask_irq_h2c;
-	if (mask) {
-		int channel = 0;
-		int max = xdev->h2c_channel_num;
+#ifndef XDMA_POLL_MODE
+	/* read channel interrupt requests */
+	irq_readout = read_register(&irq_regs->channel_int_request);
+	dbg_irq("ch_irq = 0x%08x\n", irq_readout);
 
-		/* iterate over H2C (PCIe read) */
-		for (channel = 0; channel < max && mask; channel++) {
-			struct xdma_engine *engine = &xdev->engine_h2c[channel];
+	/*
+	 * disable all interrupts that fired; these are re-enabled individually
+	 * after the causing module has been fully serviced.
+	 */
+	if (irq_readout) 
+	{
+		channel_interrupts_disable(xdev, irq_readout);
+		mask = irq_readout & xdev->mask_irq_h2c;
+		if (mask) {
+			int channel = 0;
+			int max = xdev->h2c_channel_num;
 
-			/* engine present and its interrupt fired? */
-			if ((engine->irq_bitmask & mask) &&
-			    (engine->magic == MAGIC_ENGINE)) {
-				mask &= ~engine->irq_bitmask;
-				dbg_tfr("complete, %s.\n", engine->name);
-				complete(&(engine->engine_compl));
+			/* iterate over H2C (PCIe read) */
+			for (channel = 0; channel < max && mask; channel++) {
+				struct xdma_engine *engine = &xdev->engine_h2c[channel];
+
+				/* engine present and its interrupt fired? */
+				if ((engine->irq_bitmask & mask) &&
+				    (engine->magic == MAGIC_ENGINE)) {
+					mask &= ~engine->irq_bitmask;
+					dbg_tfr("complete, %s.\n", engine->name);
+					complete(&(engine->engine_compl));
+				}
+			}
+		}
+
+		mask = irq_readout & xdev->mask_irq_c2h;
+		if (mask) {
+			int channel = 0;
+			int max = xdev->c2h_channel_num;
+
+			/* iterate over C2H (PCIe write) */
+			for (channel = 0; channel < max && mask; channel++) {
+				struct xdma_engine *engine = &xdev->engine_c2h[channel];
+
+				/* engine present and its interrupt fired? */
+				if ((engine->irq_bitmask & mask) &&
+				    (engine->magic == MAGIC_ENGINE)) {
+					mask &= ~engine->irq_bitmask;
+					dbg_tfr("complete, %s.\n", engine->name);
+					complete(&(engine->engine_compl));
+				}
 			}
 		}
 	}
-
-	mask = ch_irq & xdev->mask_irq_c2h;
-	if (mask) {
-		int channel = 0;
-		int max = xdev->c2h_channel_num;
-
-		/* iterate over C2H (PCIe write) */
-		for (channel = 0; channel < max && mask; channel++) {
-			struct xdma_engine *engine = &xdev->engine_c2h[channel];
-
-			/* engine present and its interrupt fired? */
-			if ((engine->irq_bitmask & mask) &&
-			    (engine->magic == MAGIC_ENGINE)) {
-				mask &= ~engine->irq_bitmask;
-				dbg_tfr("complete, %s.\n", engine->name);
-				complete(&(engine->engine_compl));
-			}
-		}
-	}
-
+#endif
 	xdev->irq_count++;
 	return IRQ_HANDLED;
 }
@@ -587,6 +588,7 @@ static irqreturn_t xdma_user_irq(int irq, void *dev_id)
 	return user_irq_service(irq, user_irq);
 }
 
+#ifndef XDMA_POLL_MODE
 /*
  * xdma_channel_irq() - Interrupt handler for channel interrupts in MSI-X mode
  *
@@ -619,7 +621,7 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 	xdev->irq_count++;
 	return IRQ_HANDLED;
 }
-
+#endif
 /*
  * Unmap the BAR regions that had been mapped earlier using map_bars()
  */
@@ -1025,6 +1027,7 @@ static void prog_irq_msix_user(struct xdma_dev *xdev, bool clear)
 	}
 }
 
+#ifndef XDMA_POLL_MODE
 static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 {
 	struct interrupt_regs *int_regs =
@@ -1131,7 +1134,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 
 	return 0;
 }
-
+#endif 
 static void irq_msix_user_teardown(struct xdma_dev *xdev)
 {
 	int i;
@@ -1248,7 +1251,9 @@ static int irq_legacy_setup(struct xdma_dev *xdev, struct pci_dev *pdev)
 static void irq_teardown(struct xdma_dev *xdev)
 {
 	if (xdev->msix_enabled) {
+#ifndef XDMA_POLL_MODE
 		irq_msix_channel_teardown(xdev);
+#endif		
 		irq_msix_user_teardown(xdev);
 	} else if (xdev->irq_line != -1) {
 		dbg_init("Releasing IRQ#%d\n", xdev->irq_line);
@@ -1261,14 +1266,17 @@ static int irq_setup(struct xdma_dev *xdev, struct pci_dev *pdev)
 	pci_keep_intx_enabled(pdev);
 
 	if (xdev->msix_enabled) {
-		int rv = irq_msix_channel_setup(xdev);
-
-		if (rv)
-			return rv;
-		rv = irq_msix_user_setup(xdev);
+		int rv;
+#ifndef XDMA_POLL_MODE
+		rv = irq_msix_channel_setup(xdev);
 		if (rv)
 			return rv;
 		prog_irq_msix_channel(xdev, 0);
+#endif
+		rv = irq_msix_user_setup(xdev);
+		if (rv)
+			return rv;
+		
 		prog_irq_msix_user(xdev, 0);
 
 		return 0;
@@ -2500,7 +2508,9 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	check_nonzero_interrupt_status(xdev);
 	/* explicitely zero all interrupt enable masks */
+#ifndef XDMA_POLL_MODE
 	channel_interrupts_disable(xdev, ~0);
+#endif
 	user_interrupts_disable(xdev, ~0);
 	read_interrupts(xdev);
 
@@ -2610,7 +2620,9 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 	}
 	xdma_device_set_offline(xdev, true);
 	wait_for_engines_idle(xdev);
+#ifndef XDMA_POLL_MODE
 	channel_interrupts_disable(xdev, ~0);
+#endif
 	user_interrupts_disable(xdev, ~0);
 	read_interrupts(xdev);
 
@@ -2652,7 +2664,9 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	wait_for_engines_idle(xdev);
 
 	/* turn off interrupts */
+#ifndef XDMA_POLL_MODE
 	channel_interrupts_disable(xdev, ~0);
+#endif
 	user_interrupts_disable(xdev, ~0);
 	read_interrupts(xdev);
 	irq_teardown(xdev);
