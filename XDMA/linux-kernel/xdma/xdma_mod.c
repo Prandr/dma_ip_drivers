@@ -31,10 +31,10 @@
 #include "version.h"
 
 #define DRV_MODULE_NAME		"xdma-chr"
-#define DRV_MODULE_DESC		"Xilinx XDMA Reference Driver"
+#define DRV_MODULE_DESC		"Reworked XDMA Driver"
 
 static char version[] =
-	DRV_MODULE_DESC " " DRV_MODULE_NAME " v" DRV_MODULE_VERSION "\n";
+	DRV_MODULE_DESC " " DRV_MODULE_NAME"\n";
 
 MODULE_AUTHOR("Xilinx, Inc.");
 MODULE_DESCRIPTION(DRV_MODULE_DESC);
