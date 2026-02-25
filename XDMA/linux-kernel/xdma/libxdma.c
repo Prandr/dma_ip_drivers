@@ -1937,12 +1937,13 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	unsigned long jiffies_limit= jiffies + timeout_jiffies;
 	unsigned int descriptors_count= get_initial_adj_count(engine, 0)+1;/*this gives the number of descriptors in an adjacent block*/
 	u32 poll_wb=0;
+	u32 current_completed_descriptors=0;
 	/*replicates behaviour of wait_for_completion for unified handling of transfer result*/
 	do
 	{	
 		mb();/*some architectures may require explicit barrier for the writeback become visible*/
-		poll_wb=engine->poll_mode_wb.virtual_addr->completed_desc_count;
-		u32 current_completed_descriptors=poll_wb & WB_COUNT_MASK;
+		poll_wb=READ_ONCE(engine->poll_mode_wb.virtual_addr->completed_desc_count);
+		current_completed_descriptors=poll_wb & WB_COUNT_MASK;
 		/*return a positive value. xdma_finalise_transfer will deal with it appropriately*/
 		if((current_completed_descriptors >= descriptors_count) || (poll_wb & WB_ERR_MASK))
 		{
