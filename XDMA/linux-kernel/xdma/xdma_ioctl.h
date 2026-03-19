@@ -81,7 +81,6 @@ struct xdma_ioc_info {
 	unsigned char		func;
 };
 
-#define AXILITE_WIDTH 4
 
 /* IOCTL codes */
 #define XDMA_IOCINFO		_IOWR(XDMA_IOC_MAGIC, XDMA_IOC_INFO, \

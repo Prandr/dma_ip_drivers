@@ -33,12 +33,12 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)fp->private_data;
 	struct xdma_dev *xdev;
 	void __iomem *reg;
-	u32 w;
 	int rv;
-	if (count !=AXILITE_WIDTH)
+	
+	if (count> 4 || count==3)
 	{
-		pr_crit("AXI-Lite presumes %u bytes access\n", AXILITE_WIDTH);
-		return -EPROTO;
+		pr_err("Unsupported access length %zu \n", count);
+		return -EINVAL;
 	}
 	
 	rv = xcdev_check(__func__, xcdev, 0);
@@ -48,25 +48,43 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	if(xdma_device_test_offline(xdev))
 		return -EBUSY;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, count, count);
 	if (rv < 0)
 		return rv;
 	/* first address is BAR base plus file position offset */
 	reg = xdev->bar[xcdev->bar] + *pos;
-	//w = read_register(reg);
-	w = ioread32(reg);
-	dbg_fops("%s(@%p, count=%zu, pos=%lld) value = 0x%08x\n",
-			__func__, reg, count, *pos, w);
-	*pos += AXILITE_WIDTH;
+	dbg_fops("%s(@%p, count=%zu, pos=%lld)\n",
+			__func__, reg, count, *pos);
 	/*use simple copy instead of looped copy. safe to cast thanks to length check above*/
-	rv = __put_user(w, (u32 *)buf);
-	if (rv!=0)
+	switch(count)
 	{
-		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. Read from AXIL-Master failed.\n");
+		case 1:
+		{
+			u8 w = ioread8(reg);
+			rv = __put_user(w, (u8 *)buf);
+			break;
+		}
+		case 2:
+		{
+			u16 w = ioread16(reg);
+			rv = __put_user(w, (u16 *)buf);
+			break;
+		}
+		case 4:
+		{
+			u32 w = ioread32(reg);
+			rv = __put_user(w, (u32 *)buf);
+			break;
+		}
+	}
+	*pos += count;
+	if (rv<0)
+	{
+		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. %s AXIL-Master failed.\n", "Read from");
 		return rv;
 	}
-
-	return AXILITE_WIDTH;
+	
+	return count;
 }
 
 static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
@@ -75,13 +93,12 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_dev *xdev;
 	void __iomem *reg;
-	u32 w;
 	int rv;
-
-	if (count !=AXILITE_WIDTH)
+	
+	if (count> 4 || count==3)
 	{
-		pr_crit("AXI-Lite presumes %u bytes access\n", AXILITE_WIDTH);
-		return -EPROTO;
+		pr_err("Unsupported access length %zu \n", count);
+		return -EINVAL;
 	}
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
@@ -90,26 +107,54 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	if(xdma_device_test_offline(xdev))
 		return -EBUSY;
 	/*sanity checks for offsets*/
-	rv=position_check(xdev->bar_size[xcdev->bar], *pos, AXILITE_WIDTH, count);
+	rv=position_check(xdev->bar_size[xcdev->bar], *pos, count, count);
 	if (rv < 0)
 		return rv;
 
 	/* first address is BAR base plus file position offset */
 	reg = xdev->bar[xcdev->bar] + *pos;
+	dbg_sg("%s(%p, count=%zu, pos=%lld)\n",
+			__func__, reg, count, *pos);
 	/*use simple copy instead of looped copy. safe to cast thanks to length check above*/
-	rv = __get_user(w, (u32 *)buf);
-	if (rv!=0)
+	switch (count)
 	{
-		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. Write to AXIL-Master failed.\n");
+		case 1:
+		{
+			u8 w;
+			rv = __get_user(w, (u8 *)buf);
+			if (rv<0)
+				break;
+			iowrite8(w, reg);
+			break;
+		}
+		case 2:
+		{
+			u16 w;
+			rv = __get_user(w, (u16 *)buf);
+			if (rv<0)
+				break;
+			iowrite16(w, reg);
+			break;
+		}
+		case 4:
+		{
+			u32 w;
+			rv = __get_user(w, (u32 *)buf);
+			if (rv<0)
+				break;
+			iowrite32(w, reg);
+			break;
+		}
+	}
+	if (rv<0)
+	{
+		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. %s AXIL-Master failed.\n", "Write to");
 		return rv;
 	}
-
-	dbg_sg("%s(0x%08x @%p, count=%zu, pos=%lld)\n",
-			__func__, w, reg, count, *pos);
-	//write_register(w, reg);
-	iowrite32(w, reg);
-	*pos += AXILITE_WIDTH;
-	return AXILITE_WIDTH;
+	
+	
+	*pos += count;
+	return count;
 }
 
 static long version_ioctl(struct xdma_cdev *xcdev, void __user *arg)
