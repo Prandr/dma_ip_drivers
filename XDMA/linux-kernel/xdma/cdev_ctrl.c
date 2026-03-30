@@ -78,7 +78,7 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 		}
 	}
 	*pos += count;
-	if (rv<0)
+	if (unlikely(rv<0))
 	{
 		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. %s AXIL-Master failed.\n", "Read from");
 		return rv;
@@ -122,8 +122,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 		{
 			u8 w;
 			rv = __get_user(w, (u8 *)buf);
-			if (rv<0)
-				break;
+			if (unlikely(rv<0))
+				goto fault;
 			iowrite8(w, reg);
 			break;
 		}
@@ -131,8 +131,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 		{
 			u16 w;
 			rv = __get_user(w, (u16 *)buf);
-			if (rv<0)
-				break;
+			if (unlikely(rv<0))
+				goto fault;
 			iowrite16(w, reg);
 			break;
 		}
@@ -140,21 +140,17 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 		{
 			u32 w;
 			rv = __get_user(w, (u32 *)buf);
-			if (rv<0)
-				break;
+			if (unlikely(rv<0))
+				goto fault;
 			iowrite32(w, reg);
 			break;
 		}
-	}
-	if (rv<0)
-	{
-		pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. %s AXIL-Master failed.\n", "Write to");
-		return rv;
-	}
-	
-	
+	}	
 	*pos += count;
 	return count;
+fault:
+	pr_err("Fault occured due to invalid invalid or prohibited location of the value variable. %s AXIL-Master failed.\n", "Write to");
+		return rv;
 }
 
 static long version_ioctl(struct xdma_cdev *xcdev, void __user *arg)
