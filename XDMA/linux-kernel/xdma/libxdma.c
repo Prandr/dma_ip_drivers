@@ -739,9 +739,8 @@ static struct xdma_transfer *engine_start(struct xdma_engine *engine)
 	write_register(w, &engine->sgdma_regs->first_desc_hi,
 		       (unsigned long)(&engine->sgdma_regs->first_desc_hi) -
 			       (unsigned long)(&engine->sgdma_regs));
-
-	next_adj = xdma_get_next_adj(transfer->desc_adjacent,
-				     cpu_to_le32(PCI_DMA_L(transfer->desc_bus)));
+	/*retrieve next adj field from the first descriptor*/
+	next_adj = (transfer->desc_virt[0].control>>8)& 0x3FU;
 
 	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_adjacent)\n", next_adj,
 		(void *)&engine->sgdma_regs->first_desc_adjacent);
@@ -2969,6 +2968,8 @@ static int transfer_init(struct xdma_engine *engine,
 	int last = 0;
 	u32 control;
 	unsigned long flags;
+	dma_addr_t desc_block_head;
+	u32 desc_in_block;
 
 	memset(xfer, 0, sizeof(*xfer));
 
@@ -3023,14 +3024,24 @@ static int transfer_init(struct xdma_engine *engine,
 	xfer->desc_num = desc_max;
 	engine->desc_idx = (engine->desc_idx + desc_max) % engine->desc_max;
 	engine->desc_used += desc_max;
-
+	
 	/* fill in adjacent numbers */
-	for (i = 0; i < xfer->desc_num; i++) {
-		u32 next_adj = xdma_get_next_adj(xfer->desc_num - i - 1,
-						(xfer->desc_virt + i)->next_lo);
-
-		dbg_desc("set next adj at index %d to %u\n", i, next_adj);
-		xdma_desc_adjacent(xfer->desc_virt + i, next_adj);
+	for (i = 0, desc_block_head=xfer->desc_bus; i < xfer->desc_num; desc_block_head+=desc_in_block*sizeof(struct xdma_desc)) {
+		u32 next_adj;
+									/*mask last bits to get th boundary*/	
+		dma_addr_t next_boundary=(desc_block_head+XDMA_PAGE_SIZE) & ~(XDMA_PAGE_SIZE-1);
+		/*calculate how many descriptors would fit until the nest boundary*/
+		u32 desc_until_boundary=(next_boundary - desc_block_head)/sizeof(struct xdma_desc);
+		/*limit the descriptors in a block to the next boundary...*/
+		desc_in_block=min(desc_until_boundary, XDMA_MAX_ADJ_BLOCK_SIZE);
+		/*...or to the remaining descriptors*/
+		desc_in_block=min(desc_in_block,(u32)(xfer->desc_num - i));
+		for(next_adj=desc_in_block; next_adj>0; --next_adj, ++i)
+		{
+			dbg_desc("set next adj at index %d to %u\n", i, next_adj-1);
+			xdma_desc_adjacent(xfer->desc_virt +i, next_adj-1);
+		}
+		
 	}
 
 	spin_unlock_irqrestore(&engine->lock, flags);
@@ -4483,6 +4494,8 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	/* enable bus master capability */
 	pci_set_master(pdev);
+	/*guarantee to limit the descriptor size to a single page for easier debugging*/
+	dma_set_max_seg_size( &(pdev->dev), XDMA_PAGE_SIZE);
 
 	rv = request_regions(xdev, pdev);
 	if (rv)
