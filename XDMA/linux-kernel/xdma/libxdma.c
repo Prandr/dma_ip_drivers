@@ -1651,7 +1651,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	struct xdma_transfer *transfer=&(engine->transfer);
 	unsigned int block_num=0;
 	unsigned int desc_in_block;
-	unsigned int next_adj;
+	unsigned int next_adj=0;
 	struct scatterlist *sg_iter=transfer->sgt.sgl;
 	loff_t ep_addr= engine->streaming? : engine->transfer_params.ep_addr;
 	#ifdef __LIBXDMA_DEBUG__
@@ -1691,7 +1691,8 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		but with numerical trick to substitute 0 remainder with full block length*/
 		desc_in_block= (block_num==transfer->num_adj_blocks-1)? 
 					((transfer->sgt.nents-1)& (engine->adj_block_len-1))+1 : engine->adj_block_len;
-		next_adj=desc_in_block-1;
+		if(desc_in_block>2)
+			next_adj=desc_in_block-2;
 				
 		
 		transfer->adj_desc_blocks[block_num].virtual_addr=dma_pool_zalloc(engine->desc_pool,
@@ -1703,14 +1704,15 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 			return -ENOMEM;
 		}
 		transfer->adj_desc_blocks[block_num].dma_addr=desc_dma_addr;
-		transfer->adj_desc_blocks[block_num].length=engine->adj_block_len*sizeof(struct xdma_desc);
+		transfer->adj_desc_blocks[block_num].length=desc_in_block;
 		transfer->cleanup_flags|=XFER_FLAG_DESC_DMA_ALLOC;
 		/*link to previuos block. it has always max length*/
 		if(block_num>0)
 		{
 			split_into_val32(desc_dma_addr, transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].next_hi,
-					 transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].next_lo);	
+					 transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].next_lo);
 			
+			transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1].control|= ((desc_in_block-1)<<DESC_ADJ_SHIFT);
 			dump_sg_with_desc(sg_prev,&(transfer->adj_desc_blocks[block_num-1].virtual_addr[engine->adj_block_len-1]));
 			#ifdef __LIBXDMA_DEBUG__
 				sg_prev=sg_next(sg_prev);
@@ -1721,10 +1723,15 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, transfer->adj_desc_blocks[block_num].dma_addr);
 		dbg_sg("Adjacent block %u contains %u descriptors.\n", block_num, desc_in_block);
 				/*step through desriptors in a block*/
-		for(; i<desc_in_block; ++i, sg_iter=sg_next(sg_iter), desc_dma_addr+=sizeof(struct xdma_desc), --next_adj)
+		for(; i<desc_in_block; ++i, sg_iter=sg_next(sg_iter), desc_dma_addr+=sizeof(struct xdma_desc))
 		{
 			struct xdma_desc *current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
-			current_desc->control= cpu_to_le32(DESC_MAGIC|(next_adj<<DESC_ADJ_SHIFT));/*desc magic and next adjacent*/
+			current_desc->control= cpu_to_le32(DESC_MAGIC);
+			if(next_adj>0)
+			{
+				current_desc->control|= cpu_to_le32((next_adj)<<DESC_ADJ_SHIFT);/*desc magic and next adjacent*/
+				--next_adj;
+			}
 			current_desc->bytes=cpu_to_le32(sg_dma_len(sg_iter));
 			if(engine->dir== DMA_TO_DEVICE)
 			{
@@ -1908,7 +1915,7 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 #endif
 	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
 	write_register((u32) (first_desc_addr>>32), &(engine->sgdma_regs->first_desc_hi), 0);
-	write_register(get_initial_adj_count(engine, 0), &(engine->sgdma_regs->first_desc_adjacent), 0);
+	write_register(engine->transfer.adj_desc_blocks[0].length-1, &(engine->sgdma_regs->first_desc_adjacent), 0);
 	
 	
 	write_register(XDMA_CTRL_RUN_STOP, &(engine->regs->control_w1s), 0);
