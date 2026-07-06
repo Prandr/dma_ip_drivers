@@ -21,16 +21,14 @@ latency as far as possible. It aspires to implement Figures 5-7 from PG195 in
 most efficient manner. Among the improvements:
 - Length of the adjacent descriptor blocks gets adapted to the Maximum Request Read
 Size (MRRS) as PG195 (p. 24) commands.
-- The number of max descriptors per transfer could be adapted to FIFO size and 
-number of channels (per p. 26 in PG195). However, due to a bug in the IP Core 
-(see Known Issues) a transfer is limited to a single adjacent block. It is still
-much larger than in the old driver: typically just under 4 GB, double of that if
-the MRRS is 1024 bytes.
+- The number of max descriptors per transfer is adapted to FIFO size (depends on
+configuraion of the XDMA) and number of channels (per p. 26 in PG195). If an IOMMU is avilable, 
+the driver can support huge multi-GB transfers.
 - The memory for engines is allocated dynamically, which saves a little bit of 
 kernel memory.
 
 In order to achieve these goals the driver has following limitations and for this reason
-won't be submitted as PR:
+won't be submitted as PR to the Xilinx's repository:
 - Removed transfer queues and support for asynchronous I/O. Allegedly it is
 broken, and almost noone uses it anyway.
 - The backward support for Linux kernels is limited to version 4.12
@@ -38,13 +36,13 @@ broken, and almost noone uses it anyway.
 This permits to mostly eliminate locking.
 
 This reworked version includes my PRs (in stable form) as well as relevant PRs by others
-(like alonbl's patch set) that doesn't concern XDMA procedure (since it was thrown out in
-full anyway).
+(like alonbl's patch set) that doesn't concern XDMA procedure (since it was completely 
+thrown out anyway).
 
 ### Other features
 - Reworked poll mode as compile-only option. Everything gets done in a single thread, 
 so there are no core migrations or context switches.
-- Reworked `ioctl` operations. Added ability to submit transfer request over ioctl. This is
+- Reworked `ioctl` operations. Added ability to submit a transfer request over ioctl. This is
 primarily intended to circumvent 2 GB limit for read and write operations in Linux. 
 The `xdma_ioctl.h` header is installed system-wide and thus can be simply included with
 ```
@@ -58,7 +56,7 @@ See [bypass BAR](./docs/bypass_bar.md) for more detailed information. It is fast
 - Many build options availible. It is highly recommended to refer to 
 [build help](./xdma/build-help.txt) or  to run `make help` for available configuration 
 options. There is a good chance that you find something useful. In particular, it may be
-necessary to set the PCI-E IDs recognized by the driver. The default Device ID is 0x8034,
+necessary to set the PCI-E IDs recognised by the driver. The default Device ID is 0x8034,
 which is preset for UltraScale FPGAs.
 
 - Descriptor bypass is NOT supported and won't be until solutions for following obstacles 
@@ -72,12 +70,6 @@ to compile because of typos and syntax errors in the version fenced sections.
 - I don't follow the development of Linux kernel. The driver won't be updated for a new 
 kernel until an issue is filed. When I have time, I will create a guide with whose help
 you could do it yourself
-- The IP core has a bug that makes it incapable to process more than 1 adjacent block of 
-descriptors (+1 descriptor), when there are merged address ranges (that is length of a
-descriptor is >4096 bytes). That is why the transfer is currently limited to a single 
-adjacent block of descriptors, which still way larger than the old driver thanks to
-merging. The workaround could be to execute transfer block-by-block and could be 
-implemented if proven in demand. I will try to raise the issue with AMD.
 -  The latency of XDMA may vary due to the kernel API functions that may sleep 
 (for example memory allocation with kmalloc), therefore it is **not** RT capable. Consider
 to use bypass BAR for such application.
@@ -87,7 +79,7 @@ to use bypass BAR for such application.
     and C2H devices only for reading (with `O_RDONLY`).
     2. Each DMA device can be opened only once at a time
     3. Sensibly, it is impossible to write to a C2H device or read from an H2C device.
-    But the checks are performed on the OS level thanks to the f_mode flags.
+    But the checks are performed on the OS level thanks to the `f_mode` flags.
     4. It is not possible to use `pwrite`, `pread` or `llseek` on AXI-Stream DMA interfaces. 
 - Non-incremental (fixed) address mode can be also set by O_TRUNC flag while opening a 
 MM XDMA device.
