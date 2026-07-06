@@ -442,6 +442,7 @@ struct xdma_transfer {
 	struct sg_table sgt;
 	generic_dma_record(struct xdma_desc) *adj_desc_blocks;/*bookkeeping for descriptors grouped in adjacent blocks*/
 	unsigned int num_adj_blocks;
+	unsigned int total_descriptors;
 	unsigned int cleanup_flags;/*track initialisation stages of a transfer for cleanup*/
 };
 

@@ -1565,7 +1565,7 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	First clculate size of the FIFO, then total descriptors that fit into it, and divide by number of channels,
 	separately for each diraction. */
 	const_cast(unsigned int, engine->desc_max) = (XDMA_DESC_FIFO_DEPTH * xdev->datapath_width) /sizeof(struct xdma_desc)
-	    				/(dir==DMA_TO_DEVICE? xdev->h2c_channel_num: xdev->c2h_channel_num);
+	    				/(xdev->h2c_channel_num + xdev->c2h_channel_num);
 	
 	    	
 	const_cast(unsigned int, engine->adj_block_len)=engine->xdev->max_read_request_size /sizeof(struct xdma_desc);
@@ -1596,8 +1596,8 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	#else
 	init_completion(&(engine->engine_compl));
 	#endif
-	/*pr_info("XDMA engine %s can use up to %u descriptors with length of block of adjacent descriptors up to %u", 
-		engine->name,engine->desc_max, engine->adj_block_len);*/
+	pr_info("XDMA engine %s can use up to %u descriptors with length of block of adjacent descriptors up to %u", 
+		engine->name,engine->desc_max, engine->adj_block_len);
 
 	return 0;
 }
@@ -1653,53 +1653,50 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	struct scatterlist *sg_iter=transfer->sgt.sgl;
 	struct scatterlist *sg_prev=NULL;
 	loff_t ep_addr= engine->streaming? : engine->transfer_params.ep_addr;
-	unsigned int block_num=0;
 	unsigned int processed_sg_entries=0;
+	struct xdma_desc *current_desc=NULL;
+	unsigned int allocated_blocks=0;
 	u32 control_flags=(XDMA_DESC_STOPPED|XDMA_DESC_COMPLETED);
 	
 	if(engine->streaming&& (engine->dir==DMA_TO_DEVICE) && engine->eop_flush)
 		control_flags|=XDMA_DESC_EOP;	
 	
 	
-	
-		
-	/*calculate number of adjasent descriptor blocks, for now limited to 1
-	transfer->num_adj_blocks= divide_roundup(transfer->sgt.nents, engine->adj_block_len);*/
-	transfer->num_adj_blocks=1;
-	/*dbg_sg("%u adjacent descriptor blocks are required for transfer on engine %s\n",
-		 transfer->num_adj_blocks, engine->name);*/
-		 
-	/*Dynamically allocated as an array as a provision for possible future splitting into multiple transfers.*/
-	transfer->adj_desc_blocks=kmalloc_array(transfer->num_adj_blocks, 
-		sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL|__GFP_NORETRY|__GFP_ZERO);
-	if(unlikely(transfer->adj_desc_blocks==NULL))
-	{
-		dbg_sg("Failed to allocate memory for descriptor DMA records on engine %s.\n", engine->name);
-		return -ENOMEM; 
-	}
-	transfer->cleanup_flags|=XFER_FLAG_DMA_RECORD_ALLOC;
 	/* step through blocks of adjacent descriptors*/
-	for(; (block_num<transfer->num_adj_blocks) && (processed_sg_entries < sg_nents); ++block_num)
+	for(; (processed_sg_entries < sg_nents); ++transfer->num_adj_blocks)
 	{
 		unsigned int i=0;
-		unsigned desc_in_block=0;
-		struct xdma_desc *current_desc;
 		dma_addr_t desc_dma_addr;
-				
-		transfer->adj_desc_blocks[block_num].virtual_addr=dma_pool_zalloc(engine->desc_pool,
+		/*we need to allocate (more) memory for adjacent blocks*/
+		if(transfer->num_adj_blocks==allocated_blocks)
+		{	/*allocate in steps of 4 blocks. */
+			allocated_blocks+=4;
+			/*krealloc_array is not available in earlier kernel versions. The overflow, against that it protects, 
+			is unthinkable in this case*/
+			transfer->adj_desc_blocks=krealloc(transfer->adj_desc_blocks,
+			allocated_blocks * sizeof(*(transfer->adj_desc_blocks)), GFP_KERNEL|__GFP_NORETRY|__GFP_ZERO);
+			if(unlikely(transfer->adj_desc_blocks==NULL))
+			{
+				dbg_sg("Failed to allocate memory for descriptor DMA records on engine %s.\n", engine->name);
+				return -ENOMEM; 
+			}
+			transfer->cleanup_flags|=XFER_FLAG_DMA_RECORD_ALLOC;
+		}
+			
+		transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr=dma_pool_zalloc(engine->desc_pool,
 		/*memory is allocated at the first call and then stays in the pool,therefore it is acceptable to wait once*/
 						GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
-		if(unlikely(transfer->adj_desc_blocks[block_num].virtual_addr==NULL))
+		if(unlikely(transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr==NULL))
 		{
 			dbg_sg("Failed to allocate memory from descriptor pool on engine %s\n", engine->name);		
 			return -ENOMEM;
 		}
-		transfer->adj_desc_blocks[block_num].dma_addr=desc_dma_addr;
-		transfer->adj_desc_blocks[block_num].length=engine->adj_block_len*sizeof(struct xdma_desc);
+		transfer->adj_desc_blocks[transfer->num_adj_blocks].dma_addr=desc_dma_addr;
 		transfer->cleanup_flags|=XFER_FLAG_DESC_DMA_ALLOC;
-		
+
 		dbg_sg("Descriptor DMA record %u: virtual address %p, DMA address %pad\n",
-			block_num, transfer->adj_desc_blocks[block_num].virtual_addr, &(transfer->adj_desc_blocks[block_num].dma_addr));
+			transfer->num_adj_blocks, transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr, 
+				&(transfer->adj_desc_blocks[transfer->num_adj_blocks].dma_addr));
 		
 		for(; (processed_sg_entries < sg_nents) && (i<engine->adj_block_len); ++i,  desc_dma_addr+=sizeof(struct xdma_desc))
 		{
@@ -1707,7 +1704,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 			unsigned int desc_length=0;
 			unsigned int desc_length_accum=0;
 			dma_addr_t desc_start= sg_dma_address(sg_iter);
-			current_desc=&(transfer->adj_desc_blocks[block_num].virtual_addr[i]);
+			current_desc=&(transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr[i]);
 			
 										
 			dbg_sg("SG entries:\n");
@@ -1735,7 +1732,12 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		
 		
 		
-		
+			current_desc->control=DESC_MAGIC;
+			/*generate writebacks after each completed register in poll mode.
+			this allows extended wait feature to work correctly*/
+			#ifdef XDMA_POLL_MODE 
+			current_desc->control|=XDMA_DESC_COMPLETED;
+			#endif
 			current_desc->bytes=cpu_to_le32(desc_length);
 			if(engine->dir== DMA_TO_DEVICE)
 			{
@@ -1772,25 +1774,41 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 					
 			
 		}
-		/*there are still unprocessed sg entries. Transfer doesn't fit into single adjacent block*/
-		if ( processed_sg_entries<sg_nents)
+		transfer->adj_desc_blocks[transfer->num_adj_blocks].length=i;/*repurpose length field for the number of descriptors in the block)*/
+                transfer->total_descriptors+=transfer->adj_desc_blocks[transfer->num_adj_blocks].length;
+		/*Transfer doesn't fit into reserved descriptor FIFO space*/
+		if ( unlikely(transfer->total_descriptors > engine->desc_max))
 		{
-			pr_err("Transfer requires more than a single block of %u adjacent descripors."
-			"Splitting into multiple transfers is required, but currently not implemented", 
-			engine->adj_block_len);
+			pr_err("Transfer exceeds allocated FIFO capacity of %u descripors.", engine->desc_max);
 			return -EFBIG;
 		}
-		/*set control flags on the very last descriptor*/
-		current_desc->control|=cpu_to_le32(control_flags);
-		desc_in_block=i;
-		for(i=0; i<desc_in_block; ++i)/*desc magic and next adjacent*/
+		
+		/*link to previous block.  it has always max length*/
+                if(transfer->num_adj_blocks>0)
+                {
+                        split_into_val32(transfer->adj_desc_blocks[transfer->num_adj_blocks].dma_addr, 
+                        	transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1].next_hi,
+                                transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1].next_lo);
+                        
+                        transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1].control|= 
+                        	(transfer->adj_desc_blocks[transfer->num_adj_blocks].length-1)<<DESC_ADJ_SHIFT;
+                        /*dump_sg_with_desc(sg_prev,&(transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1]));*/
+                        
+                }
+                
+		if(transfer->adj_desc_blocks[transfer->num_adj_blocks].length>2)/*desc next adjacent*/
 		{
-			transfer->adj_desc_blocks[block_num].virtual_addr[i].control|= cpu_to_le32(DESC_MAGIC|((desc_in_block-i-1)<<DESC_ADJ_SHIFT));
+			unsigned int j=0;
+			for(i=transfer->adj_desc_blocks[transfer->num_adj_blocks].length-2; i>0; --i, ++j)
+			{
+				transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr[j].control|= cpu_to_le32(i<<DESC_ADJ_SHIFT);
+			}
 		}
 		//dump_desc(current_desc);
 	}
 	
-	
+	/*set control flags on the very last descriptor*/
+		current_desc->control|=cpu_to_le32(control_flags);
 
 	return 0;
 }
@@ -1907,12 +1925,6 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	return rv;	
 }
 
-/*retrieve first adjacent count from an adjacent block. can be used for setting up transfer as well
-as to figure out the number of descriptors in the block */
-static inline u32 get_initial_adj_count(struct xdma_engine *engine, unsigned int adj_block_num)
-{
-	return (le32_to_cpu(engine->transfer.adj_desc_blocks[adj_block_num].virtual_addr[0].control) & DESC_ADJ_MASK)>>DESC_ADJ_SHIFT;
-}
 
 static void xdma_launch_transfer(struct xdma_engine *engine)
 {
@@ -1926,7 +1938,7 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 #endif
 	write_register((u32) first_desc_addr, &(engine->sgdma_regs->first_desc_lo), 0);
 	write_register((u32) (first_desc_addr>>32), &(engine->sgdma_regs->first_desc_hi), 0);
-	write_register(get_initial_adj_count(engine, 0), &(engine->sgdma_regs->first_desc_adjacent), 0);
+	write_register((u32) engine->transfer.adj_desc_blocks[0].length-1, &(engine->sgdma_regs->first_desc_adjacent), 0);
 	
 	
 	write_register(XDMA_CTRL_RUN_STOP, &(engine->regs->control_w1s), 0);
@@ -1943,14 +1955,13 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
 #ifdef XDMA_POLL_MODE
 	unsigned long jiffies_limit= jiffies + timeout_jiffies;
-	unsigned int descriptors_count= get_initial_adj_count(engine, 0)+1;/*this gives the number of descriptors in an adjacent block*/
 	/*replicates behaviour of wait_for_completion for unified handling of transfer result*/
 	do
 	{	
 		u32 poll_wb=engine->poll_mode_wb.virtual_addr->completed_desc_count;
 		u32 current_completed_descriptors=poll_wb & WB_COUNT_MASK;
 		/*return a positive value. xdma_finalise_transfer will deal with it appropriately*/
-		if((current_completed_descriptors >= descriptors_count) || (poll_wb & WB_ERR_MASK))
+		if((current_completed_descriptors >= engine->transfer.total_descriptors) || (poll_wb & WB_ERR_MASK))
 		{
 			dbg_tfr("Poll mode readback: %x\n", poll_wb);
 			return 1;
@@ -1996,9 +2007,10 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 num_descriptors)
 {
 	ssize_t completed_length=0;
-	unsigned int i=0;
-	for(; i< num_descriptors; ++i)
-		completed_length += engine->transfer.adj_desc_blocks[0].virtual_addr[i].bytes;
+	unsigned int block=0, desc=0;
+	for(; num_descriptors; ++block)
+		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)		
+			completed_length += engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes;
 		
 	return completed_length;
 
@@ -2061,8 +2073,8 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 	{
 		unsigned int i=0;
 		for(; (i <transfer->num_adj_blocks)&& (transfer->adj_desc_blocks[i].length>0); ++i)
-			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].virtual_addr,
-					 transfer->adj_desc_blocks[transfer->num_adj_blocks-i-1].dma_addr);
+			dma_pool_free(engine->desc_pool, transfer->adj_desc_blocks[i].virtual_addr,
+					 transfer->adj_desc_blocks[i].dma_addr);
 	}
 	
 	if(transfer->cleanup_flags & XFER_FLAG_DMA_RECORD_ALLOC)
