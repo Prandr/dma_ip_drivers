@@ -1514,7 +1514,7 @@ err_out:
 	engine_free_resource(engine);
 	return -ENOMEM;*/
 }
-/* register offset for the engine */
+/* register offset for an engine */
 static unsigned int get_engine_offset(enum dma_data_direction dir, int channel)
 {
 	/* read channels at 0x0000, write channels at 0x1000,
@@ -1560,12 +1560,6 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	snprintf(engine->name, sizeof(engine->name), "%d-%s%d-%s", xdev->idx,
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
 		engine->streaming ? "ST" : "MM");
-
-	/*calculate maximum usable register for engine, so that hardware descriptor FIFO would not overflow
-	First clculate size of the FIFO, then total descriptors that fit into it, and divide by number of channels,
-	separately for each diraction. */
-	const_cast(unsigned int, engine->desc_max) = (XDMA_DESC_FIFO_DEPTH * xdev->datapath_width) /sizeof(struct xdma_desc)
-	    				/(xdev->h2c_channel_num + xdev->c2h_channel_num);
 	
 	    	
 	const_cast(unsigned int, engine->adj_block_len)=engine->xdev->max_read_request_size /sizeof(struct xdma_desc);
@@ -1596,8 +1590,6 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 	#else
 	init_completion(&(engine->engine_compl));
 	#endif
-	pr_info("XDMA engine %s can use up to %u descriptors with length of block of adjacent descriptors up to %u", 
-		engine->name,engine->desc_max, engine->adj_block_len);
 
 	return 0;
 }
@@ -1644,6 +1636,20 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	according to PG195*/
 		
 	return rv;	
+}
+/*atomically subtract unless the result would become negative
+Modelled after the atomic_dec_unless_positive function*/
+static bool atomic_sub_unless_negative(atomic_t *v, int u)
+{
+	int c=atomic_read_acquire(v);
+	
+	do
+	{
+		if(unlikely(u > c))
+			return false;
+	}while(!atomic_try_cmpxchg(v, &c, c-u));
+	
+	return true;
 }
 
 static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
@@ -1776,13 +1782,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		}
 		transfer->adj_desc_blocks[transfer->num_adj_blocks].length=i;/*repurpose length field for the number of descriptors in the block)*/
                 transfer->total_descriptors+=transfer->adj_desc_blocks[transfer->num_adj_blocks].length;
-		/*Transfer doesn't fit into reserved descriptor FIFO space*/
-		if ( unlikely(transfer->total_descriptors > engine->desc_max))
-		{
-			pr_err("Transfer exceeds allocated FIFO capacity of %u descripors.", engine->desc_max);
-			return -EFBIG;
-		}
-		
+			
 		/*link to previous block.  it has always max length*/
                 if(transfer->num_adj_blocks>0)
                 {
@@ -1809,7 +1809,13 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	
 	/*set control flags on the very last descriptor*/
 		current_desc->control|=cpu_to_le32(control_flags);
-
+		/*Transfer doesn't fit into remaining space of descriptor FIFO */
+		if ( unlikely(!atomic_sub_unless_negative( &(engine->xdev->desc_fifo_capacity), transfer->total_descriptors)))
+		{
+			pr_err("Transfer requires %u descriptors that do not fit into descriptor FIFO.", transfer->total_descriptors);
+			return -EFBIG;
+		}
+		transfer->cleanup_flags|=XFER_FLAG_DESC_FIFO_RESERVED;
 	return 0;
 }
 
@@ -2068,6 +2074,9 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
+	
+	if(transfer->cleanup_flags & XFER_FLAG_DESC_FIFO_RESERVED)
+		atomic_add_return_release(transfer->total_descriptors, &(engine->xdev->desc_fifo_capacity));
 	
 	if(transfer->cleanup_flags & XFER_FLAG_DESC_DMA_ALLOC)
 	{
@@ -2528,8 +2537,9 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	set_max_read_request_size(xdev);
 	set_datapath_width(xdev);
-	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte", 
-		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width);
+	atomic_set(&(xdev->desc_fifo_capacity), (int) (xdev->datapath_width*XDMA_DESC_FIFO_DEPTH/sizeof(struct xdma_desc)));
+	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte. up to %i descriptors are avilable to the DMA engines\n", 
+		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width, atomic_read( &(xdev->desc_fifo_capacity)));
 	rv = probe_engines(xdev);
 	if (unlikely(rv))
 		goto err_probe_engines;

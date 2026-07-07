@@ -434,6 +434,7 @@ struct xdma_transfer_params {
 #define XFER_FLAG_SGTABLE_MAPPED (1U<<3)
 #define XFER_FLAG_DMA_RECORD_ALLOC (1U<<4)
 #define XFER_FLAG_DESC_DMA_ALLOC (1U<<5)
+#define XFER_FLAG_DESC_FIFO_RESERVED (1U<<6)
 
 /* holds data necessary to perform a transfer*/
 struct xdma_transfer {
@@ -476,7 +477,6 @@ struct xdma_engine {
 	const u8 filler2:1;
 
 	const unsigned int adj_block_len;	/* max length of adjacent block of descriptors */
-	const unsigned desc_max;		/* max # descriptors per xfer */
 	struct xdma_transfer_params transfer_params;
 	struct xdma_transfer transfer;
 	struct dma_pool *desc_pool;/*DMA pool for descriptors*/
@@ -532,6 +532,7 @@ struct xdma_dev {
 	
 	const unsigned int max_read_request_size;
 	const unsigned int datapath_width;
+	atomic_t desc_fifo_capacity;
 
 	/* Interrupt management */
 	int irq_count;		/* interrupt counter */
