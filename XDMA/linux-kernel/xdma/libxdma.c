@@ -2013,11 +2013,13 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 num_descriptors)
 {
 	ssize_t completed_length=0;
-	unsigned int block=0, desc=0;
-	for(; num_descriptors; ++block)
-		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)		
+	unsigned int block=0;
+	for(; (block < engine->transfer.num_adj_blocks) && num_descriptors; ++block)
+	{
+		unsigned int desc=0;
+		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)
 			completed_length += engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes;
-		
+	}
 	return completed_length;
 
 }
