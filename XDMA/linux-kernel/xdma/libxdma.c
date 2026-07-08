@@ -1612,7 +1612,14 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		return -EINVAL;
 	if(unlikely(transfer_params->length==0))
 		return -EINVAL;
-	rv=position_check(MAX_RESOURCE_SIZE, transfer_params->ep_addr, engine->addr_align, transfer_params->length);
+		
+	if(((uintptr_t) transfer_params->buf) & (engine->xdev->datapath_width-1))
+	{
+		pr_err("Data buffer must be aligned to datapath width (%u bytes).\n", engine->xdev->datapath_width);
+		return -EINVAL;
+	}
+	if(!engine->streaming)
+		rv=position_check(MAX_RESOURCE_SIZE, transfer_params->ep_addr, engine->addr_align, transfer_params->length);
 	if(unlikely(rv<0))
 		return rv;
 	if (engine->non_incr_addr)
