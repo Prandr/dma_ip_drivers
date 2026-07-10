@@ -198,7 +198,9 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	xdma_debug_assert_msg(_IOC_TYPE(cmd) == XDMA_IOC_MAGIC, "bad magic.\n", -ENOTTY);
 
-	if(xdma_device_test_offline(xdev))
+	/* When offline, reject ioctls that touch the BARs. XDMA_IOCONLINE (to go
+	 * back online) and XDMA_IOCINFO (version read) are always allowed. */
+	if(xdma_device_test_offline(xdev) && cmd != XDMA_IOCONLINE && cmd != XDMA_IOCINFO)
 		return -EBUSY;
 
 	if (access_assert((void __user *)arg, _IOC_SIZE(cmd))<0)
