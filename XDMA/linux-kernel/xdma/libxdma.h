@@ -362,11 +362,31 @@ struct interrupt_regs {
 	u32 channel_msi_vector[8];
 } __packed;
 
+/*
+ * SGDMA Common registers, config BAR target 0x6 (PG195, "SGDMA Common
+ * Registers (0x6)").
+ *
+ * Beware of two similar-looking register groups that must not be confused:
+ *   0x10/0x14/0x18: Descriptor Control (RW/W1S/W1C) -- dsc_halt bits;
+ *                   setting a bit halts descriptor fetching for a channel
+ *                   (H2C in [3:0], C2H in [19:16]).
+ *   0x20/0x24/0x28: Descriptor Credit Mode Enable (RW/W1S/W1C) -- enables
+ *                   descriptor crediting for a channel
+ *                   (H2C in [3:0], C2H in [19:16]).
+ *
+ * Credit-mode enable is at 0x20, NOT 0x10: writing the channel bit at 0x10
+ * halts the channel instead of enabling crediting.
+ */
 struct sgdma_common_regs {
-	u32 padding[4];
-	u32 credit_mode_enable;
-	u32 credit_mode_enable_w1s;
-	u32 credit_mode_enable_w1c;
+	u32 identifier;			/* 0x00 */
+	u32 reserved_1[3];		/* 0x04..0x0C */
+	u32 dsc_control;		/* 0x10 */
+	u32 dsc_control_w1s;		/* 0x14 */
+	u32 dsc_control_w1c;		/* 0x18 */
+	u32 reserved_2;			/* 0x1C */
+	u32 credit_mode_enable;		/* 0x20 */
+	u32 credit_mode_enable_w1s;	/* 0x24 */
+	u32 credit_mode_enable_w1c;	/* 0x28 */
 } __packed;
 
 
