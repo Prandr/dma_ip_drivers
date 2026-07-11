@@ -144,9 +144,11 @@
 #define XDMA_DESC_COMPLETED	(1U << 1)
 #define XDMA_DESC_EOP		(1U << 4)
 
-#define XDMA_PERF_RUN	(1U << 0)
+/* Performance Monitor Control (0xC0) bits, see PG195:
+   Auto = bit 0, Clear = bit 1, Run = bit 2 */
+#define XDMA_PERF_AUTO	(1U << 0)
 #define XDMA_PERF_CLEAR	(1U << 1)
-#define XDMA_PERF_AUTO	(1U << 2)
+#define XDMA_PERF_RUN	(1U << 2)
 #define XDMA_PERF_COUNT_OVERFLOW (1U<<16)
 
 #define MAGIC_ENGINE	0xEEEEEEEEU
