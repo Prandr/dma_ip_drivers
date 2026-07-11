@@ -64,6 +64,9 @@
 
 
 #define XDMA_MAX_C2H_CREDITS  ((1<<10)-1)
+
+/* how long to wait for Status.Busy to deassert after clearing the Run bit */
+#define XDMA_ENGINE_STOP_TIMEOUT_US	10000U
 /* bits of the SG DMA control register */
 #define XDMA_CTRL_RUN_STOP			(1U << 0)
 #define XDMA_CTRL_IE_DESC_STOPPED		(1U << 1)

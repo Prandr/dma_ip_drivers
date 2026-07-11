@@ -27,6 +27,7 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/delay.h>
 
 #include "libxdma.h"
 #include "xdma_cdev.h"
@@ -436,6 +437,7 @@ static bool engine_process_status(struct xdma_engine *engine, u32 status)
 static int xdma_engine_stop(struct xdma_engine *engine)
 {
 	u32 w=0x1;
+	unsigned int retries = XDMA_ENGINE_STOP_TIMEOUT_US;
 
 	xdma_debug_assert_ptr(engine);
 	/* make no sense to write all the flags again. Just clear the Run bit*/
@@ -445,7 +447,23 @@ static int xdma_engine_stop(struct xdma_engine *engine)
 	write_register(w, &engine->regs->control_w1c,
 			(unsigned long)(&engine->regs->control_w1c) -
 				(unsigned long)(&engine->regs));
-	/* dummy read of status register to flush all previous writes */
+	/*
+	 * PG195 (Channel Control 0x04, Run bit): "if the engine is busy it
+	 * completes the current descriptor". Wait for Status.Busy to deassert
+	 * before the caller releases descriptor and data buffer memory,
+	 * otherwise the engine may still fetch descriptors or move data
+	 * into/from memory that is about to be freed and unmapped. Reading
+	 * the status register also flushes the posted Run-bit W1C write.
+	 */
+	while ((read_register(&engine->regs->status) & XDMA_STAT_BUSY)
+		&& (retries > 0)) {
+		udelay(1);
+		--retries;
+	}
+	if (unlikely(retries == 0))
+		pr_warn("Engine %s still busy %u us after clearing the Run bit\n",
+			engine->name, XDMA_ENGINE_STOP_TIMEOUT_US);
+
 	dbg_tfr("%s(%s) done\n", __func__, engine->name);
 	engine->running = 0;
 	return 0;
