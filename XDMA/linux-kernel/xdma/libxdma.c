@@ -1634,7 +1634,26 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	}
 	/* else is not neccessary since there supposed to be no limitations
 	according to PG195*/
-		
+
+	if(engine->streaming && (engine->dir==DMA_FROM_DEVICE))
+	{
+		/*
+		 * PG195 ("DMA C2H Stream"): "The length of a C2H Stream
+		 * descriptor (the size of the destination buffer) must always
+		 * be a multiple of 64 bytes." With a 64-byte aligned buffer
+		 * and a length that is a multiple of 64, every descriptor is
+		 * guaranteed to obey the rule: scatterlist fragments split at
+		 * page boundaries and merging only ever sums fragment lengths.
+		 */
+		if(((((uintptr_t) transfer_params->buf) & 63)!=0) ||
+			((transfer_params->length & 63)!=0))
+		{
+			pr_err("C2H stream transfers require a 64-byte aligned buffer and a length that is a multiple of 64 bytes (PG195): buf 0x%px, length %zu\n",
+				transfer_params->buf, transfer_params->length);
+			return -EINVAL;
+		}
+	}
+
 	return rv;	
 }
 /*atomically subtract unless the result would become negative
@@ -1888,9 +1907,12 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	/*the functions allocate small chunks of memory. If that fails, there is 
 	no point trying, hence __NO_RETRY*/
 	#if LINUX_VERSION_CHECK(5,15,0)
+	/*round the segment limit down to a page boundary, so that oversized
+	contiguous ranges are split at a multiple of the page size and the
+	resulting descriptors keep any length granularity of the buffer*/
 	rv=sg_alloc_table_from_pages_segment(&(transfer->sgt), transfer->pages, 
 			transfer->num_pages, offset_in_page(transfer_params->buf),
-			transfer_params->length, XDMA_DESC_BLEN_MAX, GFP_KERNEL|__GFP_NORETRY);
+			transfer_params->length, XDMA_DESC_BLEN_MAX & PAGE_MASK, GFP_KERNEL|__GFP_NORETRY);
 	#elif LINUX_VERSION_CHECK(5,10,0)
 	rv=PTR_ERR_OR_ZERO(__sg_alloc_table_from_pages(&(transfer->sgt), 
 			transfer->pages, transfer->num_pages, 
