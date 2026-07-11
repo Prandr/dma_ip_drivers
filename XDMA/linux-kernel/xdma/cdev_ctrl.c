@@ -44,6 +44,14 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
 		return rv;
+	/* PG195 ("PCIe to DMA Address Format"): the XDMA register space only
+	supports 32-bit requests. Partial access stays available on the user
+	(AXI4-Lite master) device, which shares these file operations. */
+	if ((xcdev->type == CHAR_CTRL) && (count != 4))
+	{
+		pr_err("Only 4-byte accesses are supported on the control device\n");
+		return -EINVAL;
+	}
 	xdev = xcdev->xdev;
 	if(xdma_device_test_offline(xdev))
 		return -EBUSY;
@@ -103,6 +111,14 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
 		return rv;
+	/* PG195 ("PCIe to DMA Address Format"): the XDMA register space only
+	supports 32-bit requests. Partial access stays available on the user
+	(AXI4-Lite master) device, which shares these file operations. */
+	if ((xcdev->type == CHAR_CTRL) && (count != 4))
+	{
+		pr_err("Only 4-byte accesses are supported on the control device\n");
+		return -EINVAL;
+	}
 	xdev = xcdev->xdev;
 	if(xdma_device_test_offline(xdev))
 		return -EBUSY;
