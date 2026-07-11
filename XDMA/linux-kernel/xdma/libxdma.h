@@ -172,6 +172,12 @@
 #define DESC_MAGIC 0xAD4B0000U
 #define DESC_ADJ_SHIFT 8
 #define DESC_ADJ_MASK (0x3FU<<DESC_ADJ_SHIFT)
+/*
+ * PG195 ("Descriptors"): at most 64 descriptors in a single block of
+ * adjacent descriptors; both the descriptor Nxt_adj field and the SGDMA
+ * Descriptor Adjacent register are only 6 bits wide.
+ */
+#define XDMA_MAX_ADJ_BLOCK_LEN 64U
 
 #define C2H_WB 0x52B4U
 
