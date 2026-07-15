@@ -1875,10 +1875,10 @@ static int xdma_prepare_transfer(struct xdma_engine *engine)
 	#if LINUX_VERSION_CHECK(5,6,0)
 	/*pin_user_pages (not get_...) should be used in DMA application. see Linux docs*/
 	rv=pin_user_pages_fast((unsigned long)transfer_params->buf, transfer->num_pages,
-				FOLL_WRITE, transfer->pages);
+				engine->dir == DMA_FROM_DEVICE ? FOLL_WRITE : 0, transfer->pages);
 	#else
 	rv=get_user_pages_fast((unsigned long)transfer_params->buf, transfer->num_pages,
-				FOLL_WRITE, transfer->pages);
+				engine->dir == DMA_FROM_DEVICE ? FOLL_WRITE : 0, transfer->pages);
 	#endif
 	if(unlikely(rv<0))
 	{
