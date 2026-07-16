@@ -445,7 +445,6 @@ static int xdma_engine_stop(struct xdma_engine *engine)
 	write_register(w, &engine->regs->control_w1c,
 			(unsigned long)(&engine->regs->control_w1c) -
 				(unsigned long)(&engine->regs));
-	/* dummy read of status register to flush all previous writes */
 	dbg_tfr("%s(%s) done\n", __func__, engine->name);
 	engine->running = 0;
 	return 0;
