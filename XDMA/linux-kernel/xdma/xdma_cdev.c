@@ -345,7 +345,7 @@ static int create_sys_device(struct xdma_cdev *xcdev, enum cdev_type type)
 		xcdev->cdevno, NULL, devnode_names[type], xdev->idx,
 		last_param);
 
-	if (!xcdev->sys_device) {
+	if (unlikely(IS_ERR(xcdev->sys_device))) {
 		pr_err("device_create(%s) failed\n", devnode_names[type]);
 		return -1;
 	}
@@ -477,7 +477,7 @@ static int create_xcdev(struct xdma_pci_dev *xpdev, struct xdma_cdev *xcdev,
 del_cdev:
 	cdev_del(&xcdev->cdev);
 unregister_region:
-	unregister_chrdev_region(xcdev->cdevno, XDMA_MINOR_COUNT);
+	unregister_chrdev_region(MKDEV(xpdev->major, XDMA_MINOR_BASE), XDMA_MINOR_COUNT);
 	return rv;
 }
 

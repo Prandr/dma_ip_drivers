@@ -192,7 +192,7 @@ static inline u32 build_u32(u32 hi, u32 lo)
 
 static inline u64 build_u64(u64 hi, u64 lo)
 {
-	return ((hi & 0xFFFFFFFULL) << 32) | (lo & 0xFFFFFFFFULL);
+	return ((hi & 0xFFFFFFFFULL) << 32) | (lo & 0xFFFFFFFFULL);
 }
 
 static void check_nonzero_interrupt_status(struct xdma_dev *xdev)
@@ -484,7 +484,7 @@ static irqreturn_t xdma_isr(int irq, void *dev_id)
 	dbg_irq("(irq=%d, dev 0x%p) <<<< ISR.\n", irq, dev_id);
 	if (!dev_id) {
 		pr_err("Invalid dev_id on irq line %d\n", irq);
-		return -IRQ_NONE;
+		return IRQ_NONE;
 	}
 	xdev = (struct xdma_dev *)dev_id;
 
