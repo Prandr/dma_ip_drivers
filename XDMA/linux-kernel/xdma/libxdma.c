@@ -1992,7 +1992,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 				
 		}
 	/*catch signals*/
-	} while(!signal_pending(current) && !((timeout==0)&&xdma_device_test_offline(engine->xdev)));
+	} while(!signal_pending(current) && !dma_device_test_offline(engine->xdev);
 	/*like wait for completion*/
 	return -ERESTARTSYS;
 	
@@ -2605,8 +2605,7 @@ static void wait_for_engines_idle(struct xdma_dev *xdev)
 
 		if (engine->magic == MAGIC_ENGINE) {
 #ifndef XDMA_POLL_MODE   /*marks the completion with UINT_MAX and also ensures that wait queue gets emptied*/
-			if(h2c_timeout_ms==0)
-				complete_all( &(engine->engine_compl));
+			complete_all( &(engine->engine_compl));
 #endif	
 /*polling is perhaps not the best way to wait, however there should be very rarely a need for that.
 It should break immediately in normal operation, therefore acceptable.*/ 
@@ -2620,8 +2619,7 @@ It should break immediately in normal operation, therefore acceptable.*/
 		engine = &xdev->engine_c2h[i];
 		if (engine->magic == MAGIC_ENGINE) {
 #ifndef XDMA_POLL_MODE
-			if(c2h_timeout_ms==0)
-				complete_all( &(engine->engine_compl));
+			complete_all( &(engine->engine_compl));
 #endif	
 			while(test_bit(XENGINE_BUSY_BIT, &(engine->flags)));
 						
