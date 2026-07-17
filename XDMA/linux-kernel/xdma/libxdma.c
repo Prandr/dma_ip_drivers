@@ -1612,6 +1612,15 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 	if(unlikely(transfer_params->length==0))
 		return -EINVAL;
 		
+	if(unlikely(transfer_params->length>rlimit(RLIMIT_MEMLOCK)))
+	{
+		pr_err("Transfer exceeds current limit for memory pinning of %lu Bytes. "
+		"Please increase the memlock limit to appropriate value with setrlimit or in '/etc/security/limit.conf'\n",
+		rlimit(RLIMIT_MEMLOCK));
+		return -ENOMEM;
+	}
+		
+		
 	if(((uintptr_t) transfer_params->buf) & (engine->xdev->datapath_width-1))
 	{
 		pr_err("Data buffer must be aligned to datapath width (%u bytes).\n", engine->xdev->datapath_width);
