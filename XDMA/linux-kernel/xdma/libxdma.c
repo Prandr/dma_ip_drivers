@@ -1561,7 +1561,11 @@ static int engine_init(struct xdma_dev *xdev, enum dma_data_direction dir, int c
 		engine->streaming ? "ST" : "MM");
 	
 	    	
-	const_cast(unsigned int, engine->adj_block_len)=engine->xdev->max_read_request_size /sizeof(struct xdma_desc);
+	/* size adjacent blocks to the MRRS, but never above the 64-descriptor
+	   limit of the 6-bit Nxt_adj/dsc_adj fields (MRRS can be 4096) */
+	const_cast(unsigned int, engine->adj_block_len)=min_t(unsigned int,
+		engine->xdev->max_read_request_size /sizeof(struct xdma_desc),
+		XDMA_MAX_ADJ_BLOCK_LEN);
 	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
 		 (unsigned int) (int)engine->irq_bitmask);
 
