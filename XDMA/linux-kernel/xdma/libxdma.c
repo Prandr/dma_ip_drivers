@@ -1438,7 +1438,12 @@ static int engine_init_regs(struct xdma_engine *engine)
 			|XDMA_CTRL_IE_DESC_ALIGN_MISMATCH
 			|XDMA_CTRL_IE_DESC_COMPLETED
 			|XDMA_CTRL_IE_DESC_STOPPED);
-	
+
+	/* replay fixed (non-incrementing) address mode so that it survives
+	   re-initialisation through xdma_device_online() after a reset */
+	if (engine->non_incr_addr)
+		control_reg_value |= XDMA_CTRL_NON_INCR_ADDR;
+
 #ifdef XDMA_POLL_MODE
 /* if using polled mode,  enable writeback and configure its address, disable interrupts */
 	engine->poll_mode_wb.virtual_addr->completed_desc_count=0;
