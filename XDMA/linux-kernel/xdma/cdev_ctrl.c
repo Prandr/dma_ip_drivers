@@ -37,8 +37,8 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	
 	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu to %s\n", count, 
-			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite Interface");
+		pr_err("Invalid access length of %zu to %s\n", count, 
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite interface");
 		return -EINVAL;
 	}
 	
@@ -98,8 +98,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	
 	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu to %s\n", count, 
-			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite Interface");
+		pr_err("Invalid access length of %zu to %s\n", count,
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite interface");
 		return -EINVAL;
 	}
 	rv = xcdev_check(__func__, xcdev, 0);
@@ -113,7 +113,6 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	rv=position_check(xdev->bar_size[xcdev->bar], *pos, count, count);
 	if (rv < 0)
 		return rv;
-
 	/* first address is BAR base plus file position offset */
 	reg = xdev->bar[xcdev->bar] + *pos;
 	dbg_sg("%s(%p, count=%zu, pos=%lld)\n",
