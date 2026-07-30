@@ -37,7 +37,8 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	
 	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu \n", count);
+		pr_err("Unsupported access length %zu to %s\n", count, 
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite Interface");
 		return -EINVAL;
 	}
 	
@@ -97,7 +98,8 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	
 	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu \n", count);
+		pr_err("Unsupported access length %zu to %s\n", count, 
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite Interface");
 		return -EINVAL;
 	}
 	rv = xcdev_check(__func__, xcdev, 0);
