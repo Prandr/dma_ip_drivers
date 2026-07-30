@@ -1762,11 +1762,11 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 		
 		
 		
-			current_desc->control=DESC_MAGIC;
+			current_desc->control=cpu_to_le32(DESC_MAGIC);
 			/*generate writebacks after each completed register in poll mode.
 			this allows extended wait feature to work correctly*/
 			#ifdef XDMA_POLL_MODE 
-			current_desc->control|=XDMA_DESC_COMPLETED;
+			current_desc->control|=cpu_to_le32(XDMA_DESC_COMPLETED);
 			#endif
 			current_desc->bytes=cpu_to_le32(desc_length);
 			if(engine->dir== DMA_TO_DEVICE)
@@ -1815,7 +1815,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
                                 transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1].next_lo);
                         
                         transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1].control|= 
-                        	(transfer->adj_desc_blocks[transfer->num_adj_blocks].length-1)<<DESC_ADJ_SHIFT;
+                        	cpu_to_le32((transfer->adj_desc_blocks[transfer->num_adj_blocks].length-1)<<DESC_ADJ_SHIFT);
                         /*dump_sg_with_desc(sg_prev,&(transfer->adj_desc_blocks[transfer->num_adj_blocks-1].virtual_addr[engine->adj_block_len-1]));*/
                         
                 }
@@ -2040,7 +2040,7 @@ static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 
 	unsigned int block=0, desc=0;
 	for(; num_descriptors; ++block)
 		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)		
-			completed_length += engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes;
+			completed_length += le32_to_cpu(engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes);
 		
 	return completed_length;
 
