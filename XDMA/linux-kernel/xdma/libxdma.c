@@ -2039,9 +2039,12 @@ static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 
 	ssize_t completed_length=0;
 	unsigned int block=0, desc=0;
 	for(; num_descriptors; ++block)
+  {
+    desc=0;
 		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)		
 			completed_length += le32_to_cpu(engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes);
-		
+  }
+
 	return completed_length;
 
 }
