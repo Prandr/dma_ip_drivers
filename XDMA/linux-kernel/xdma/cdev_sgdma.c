@@ -54,7 +54,7 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 	struct xdma_cdev *xcdev = (struct xdma_cdev *)filp->private_data;
 	struct xdma_engine *engine=xcdev->engine;
 	/*guard against attempts for simultaneous transfer*/
-	if(xdma_device_test_offline(xcdev->xdev) || test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
+	if(xdma_device_test_offline(xcdev->xdev) || test_and_set_bit_lock(XENGINE_BUSY_BIT, &(engine->flags)))
 		return -EBUSY;
 	/*just fill transfer params. checks are performed later inside xdma_xfer_submit*/
 	engine->transfer_params.buf=buf;
@@ -70,8 +70,7 @@ static ssize_t char_sgdma_read_write(struct file *filp, const char __user *buf,
 	if(!engine->streaming && !engine->non_incr_addr &&(rv>0))
 		*pos+=rv;
 	
-	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
-	smp_mb__after_atomic();
+	clear_bit_unlock(XENGINE_BUSY_BIT, &(engine->flags));
 	return rv;
 }
 
@@ -89,12 +88,11 @@ static int ioctl_do_perf_test(struct xdma_engine *engine, unsigned long arg)
 	if (rv<0)
 		return rv;
 	xdma_debug_assert_ptr(engine);
-	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
+	if (test_and_set_bit_lock(XENGINE_BUSY_BIT, &(engine->flags))) 		
 		return -EBUSY;
 	enable_perf(engine, enable);
 
-	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
-	smp_mb__after_atomic();
+	clear_bit_unlock(XENGINE_BUSY_BIT, &(engine->flags));
 	return rv;
 }
 
@@ -109,11 +107,10 @@ static int ioctl_do_addrmode_set(struct xdma_engine *engine, unsigned long arg)
 	rv = get_user(set, (bool __user *) arg);
 	if(unlikely(rv<0))
 		return rv;
-	if (test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags))) 		
+	if (test_and_set_bit_lock(XENGINE_BUSY_BIT, &(engine->flags))) 		
 		return -EBUSY;
 	engine_addrmode_set(engine, set);
-	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
-	smp_mb__after_atomic();
+	clear_bit_unlock(XENGINE_BUSY_BIT, &(engine->flags));
 	return 0;
 }
 
@@ -161,7 +158,7 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 		pr_err("Improper XDMA transfer mode\n");
 		return -ENOTSUPP;
 	}		
-	if(test_and_set_bit(XENGINE_BUSY_BIT, &(engine->flags)))
+	if(test_and_set_bit_lock(XENGINE_BUSY_BIT, &(engine->flags)))
 		return -EBUSY;					
 	/*we already checked the access*/
 	rv=__get_user( engine->transfer_params.buf, &(user_transfer_request->buf));
@@ -205,8 +202,7 @@ static int ioctl_do_submit_transfer(struct xdma_engine *engine, unsigned long ar
 	}
 	
 	exit:
-	clear_bit(XENGINE_BUSY_BIT, &(engine->flags));
-	smp_mb__after_atomic();
+	clear_bit_unlock(XENGINE_BUSY_BIT, &(engine->flags));
 	return rv;	
 }
 	
@@ -268,7 +264,7 @@ static int char_sgdma_open(struct inode *inode, struct file *filp)
 	engine = xcdev->engine;
 	
 	//don't allow to open the engine more than once
-	if(test_and_set_bit(XENGINE_OPEN_BIT, &(engine->flags)))
+	if(test_and_set_bit_lock(XENGINE_OPEN_BIT, &(engine->flags)))
 		return -EBUSY;
 	/*Should never ever happen otherwise something went horribly wrong*/
 	xdma_debug_assert_msg((engine->dir==DMA_TO_DEVICE)||(engine->dir==DMA_FROM_DEVICE), 
@@ -317,10 +313,7 @@ static int char_sgdma_open(struct inode *inode, struct file *filp)
 	
 	not_open:
 	if (ret_val<0)/*clear busy bit again, if file can't be allowed to open*/
-	{
-		clear_bit(XENGINE_OPEN_BIT, &(engine->flags));
-		smp_mb__after_atomic();
-	}
+		clear_bit_unlock(XENGINE_OPEN_BIT, &(engine->flags));
 	
 	return ret_val;
 }
@@ -337,8 +330,7 @@ static int char_sgdma_close(struct inode *inode, struct file *filp)
 
 	engine = xcdev->engine;
 	
-	clear_bit(XENGINE_OPEN_BIT, &(engine->flags));
-	smp_mb__after_atomic();
+	clear_bit_unlock(XENGINE_OPEN_BIT, &(engine->flags));
 	return 0;
 }
 static const struct file_operations sgdma_fops = {

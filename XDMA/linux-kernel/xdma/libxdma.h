@@ -144,9 +144,11 @@
 #define XDMA_DESC_COMPLETED	(1U << 1)
 #define XDMA_DESC_EOP		(1U << 4)
 
-#define XDMA_PERF_RUN	(1U << 0)
+/* Performance Monitor Control (0xC0) bits, see PG195:
+   Auto = bit 0, Clear = bit 1, Run = bit 2 */
+#define XDMA_PERF_AUTO	(1U << 0)
 #define XDMA_PERF_CLEAR	(1U << 1)
-#define XDMA_PERF_AUTO	(1U << 2)
+#define XDMA_PERF_RUN	(1U << 2)
 #define XDMA_PERF_COUNT_OVERFLOW (1U<<16)
 
 #define MAGIC_ENGINE	0xEEEEEEEEU
@@ -172,6 +174,12 @@
 #define DESC_MAGIC 0xAD4B0000U
 #define DESC_ADJ_SHIFT 8
 #define DESC_ADJ_MASK (0x3FU<<DESC_ADJ_SHIFT)
+/*
+ * PG195 ("Descriptors"): at most 64 descriptors in a single block of
+ * adjacent descriptors; both the descriptor Nxt_adj field and the SGDMA
+ * Descriptor Adjacent register are only 6 bits wide.
+ */
+#define XDMA_MAX_ADJ_BLOCK_LEN 64U
 
 #define C2H_WB 0x52B4U
 
@@ -362,11 +370,31 @@ struct interrupt_regs {
 	u32 channel_msi_vector[8];
 } __packed;
 
+/*
+ * SGDMA Common registers, config BAR target 0x6 (PG195, "SGDMA Common
+ * Registers (0x6)").
+ *
+ * Beware of two similar-looking register groups that must not be confused:
+ *   0x10/0x14/0x18: Descriptor Control (RW/W1S/W1C) -- dsc_halt bits;
+ *                   setting a bit halts descriptor fetching for a channel
+ *                   (H2C in [3:0], C2H in [19:16]).
+ *   0x20/0x24/0x28: Descriptor Credit Mode Enable (RW/W1S/W1C) -- enables
+ *                   descriptor crediting for a channel
+ *                   (H2C in [3:0], C2H in [19:16]).
+ *
+ * Credit-mode enable is at 0x20, NOT 0x10: writing the channel bit at 0x10
+ * halts the channel instead of enabling crediting.
+ */
 struct sgdma_common_regs {
-	u32 padding[4];
-	u32 credit_mode_enable;
-	u32 credit_mode_enable_w1s;
-	u32 credit_mode_enable_w1c;
+	u32 identifier;			/* 0x00 */
+	u32 reserved_1[3];		/* 0x04..0x0C */
+	u32 dsc_control;		/* 0x10 */
+	u32 dsc_control_w1s;		/* 0x14 */
+	u32 dsc_control_w1c;		/* 0x18 */
+	u32 reserved_2;			/* 0x1C */
+	u32 credit_mode_enable;		/* 0x20 */
+	u32 credit_mode_enable_w1s;	/* 0x24 */
+	u32 credit_mode_enable_w1c;	/* 0x28 */
 } __packed;
 
 

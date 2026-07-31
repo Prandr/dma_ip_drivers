@@ -25,7 +25,8 @@ Size (MRRS) as PG195 (p. 24) commands.
 configuration of the XDMA per p. 26 in PG195). The driver makes flexible use of them, 
 by allocating to transfers on "first come, first served" basis. Thus, if there no other 
 transfers running in parallel, the whole capacity is available for a transfer.
-If an IOMMU is avilable, the driver can support huge multi-GB transfers.
+If an IOMMU is avilable, the driver can support huge multi-GB transfers. You may, however,
+need to raise the memlock resource limit for pinnable memory to your maximum transfer size.
 - The memory for engines is allocated dynamically, which saves a little bit of 
 kernel memory.
 

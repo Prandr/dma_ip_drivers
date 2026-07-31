@@ -35,9 +35,10 @@ static ssize_t char_ctrl_read(struct file *fp, char __user *buf, size_t count,
 	void __iomem *reg;
 	int rv;
 	
-	if (count> 4 || count==3)
+	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu \n", count);
+		pr_err("Invalid access length of %zu to %s\n", count, 
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite interface");
 		return -EINVAL;
 	}
 	
@@ -95,14 +96,16 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	void __iomem *reg;
 	int rv;
 	
-	if (count> 4 || count==3)
+	if (((xcdev->type == CHAR_CTRL) && (count != 4)) || count> 4 || count==3)
 	{
-		pr_err("Unsupported access length %zu \n", count);
+		pr_err("Invalid access length of %zu to %s\n", count,
+			xcdev->type == CHAR_CTRL? "XDMA registers" : "AXI-Lite interface");
 		return -EINVAL;
 	}
 	rv = xcdev_check(__func__, xcdev, 0);
 	if (rv < 0)
 		return rv;
+	
 	xdev = xcdev->xdev;
 	if(xdma_device_test_offline(xdev))
 		return -EBUSY;
@@ -110,7 +113,6 @@ static ssize_t char_ctrl_write(struct file *filp, const char __user *buf,
 	rv=position_check(xdev->bar_size[xcdev->bar], *pos, count, count);
 	if (rv < 0)
 		return rv;
-
 	/* first address is BAR base plus file position offset */
 	reg = xdev->bar[xcdev->bar] + *pos;
 	dbg_sg("%s(%p, count=%zu, pos=%lld)\n",
@@ -198,7 +200,9 @@ long char_ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	xdma_debug_assert_msg(_IOC_TYPE(cmd) == XDMA_IOC_MAGIC, "bad magic.\n", -ENOTTY);
 
-	if(xdma_device_test_offline(xdev))
+	/* When offline, reject ioctls that touch the BARs. XDMA_IOCONLINE (to go
+	 * back online) and XDMA_IOCINFO (version read) are always allowed. */
+	if(xdma_device_test_offline(xdev) && cmd != XDMA_IOCONLINE && cmd != XDMA_IOCINFO)
 		return -EBUSY;
 
 	if (access_assert((void __user *)arg, _IOC_SIZE(cmd))<0)
