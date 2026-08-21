@@ -135,7 +135,7 @@ static int ioctl_do_align_get(struct xdma_engine *engine, unsigned long arg)
 	xdma_debug_assert_ptr(engine);
 
 	dbg_perf("XDMA_IOCTL_ALIGN_GET\n");
-	return put_user(engine->addr_align, (int __user *)arg);
+	return put_user(engine->xdev->datapath_width, (int __user *)arg);
 }
 
 
