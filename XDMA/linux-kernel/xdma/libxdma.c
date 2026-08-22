@@ -919,7 +919,8 @@ static int msi_msix_capable(struct pci_dev *dev, int type)
 static void disable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 {
 	if (xdev->msix_enabled) {
-		pci_disable_msix(pdev);
+		/* counterpart of pci_alloc_irq_vectors() */
+		pci_free_irq_vectors(pdev);
 		xdev->msix_enabled = 0;
 	} else if (xdev->msi_enabled) {
 		pci_disable_msi(pdev);
@@ -943,26 +944,30 @@ static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 		dbg_init("Enabling MSI-X\n");
 		/*avilable since 4.8*/
 		rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec, PCI_IRQ_MSIX);
+		if (rv >= 0) {
+			xdev->msix_enabled = 1;
+			return 0;
+		}
+		/* fall through and try the other interrupt modes */
+		pr_warn("Couldn't enable MSI-X mode: %d. Trying MSI/legacy.\n",
+			rv);
+	}
 
-		if (rv < 0)
-			dbg_init("Couldn't enable MSI-X mode: %d\n", rv);
-
-		xdev->msix_enabled = 1;
-
-	} else if ((interrupt_mode == 1 || !interrupt_mode) &&
+	if ((interrupt_mode == 1 || !interrupt_mode) &&
 		   msi_msix_capable(pdev, PCI_CAP_ID_MSI)) {
 		/* enable message signalled interrupts */
 		dbg_init("pci_enable_msi()\n");
 		rv = pci_enable_msi(pdev);
-		if (rv < 0)
-			dbg_init("Couldn't enable MSI mode: %d\n", rv);
-		xdev->msi_enabled = 1;
-
-	} else {
-		dbg_init("MSI/MSI-X not detected - using legacy interrupts\n");
+		if (rv == 0) {
+			xdev->msi_enabled = 1;
+			return 0;
+		}
+		pr_warn("Couldn't enable MSI mode: %d. Falling back to legacy interrupts.\n",
+			rv);
 	}
 
-	return rv;
+	dbg_init("MSI/MSI-X not enabled - using legacy interrupts\n");
+	return 0;
 }
 
 static void pci_check_intr_pend(struct pci_dev *pdev)
