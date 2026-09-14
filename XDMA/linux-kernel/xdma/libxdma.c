@@ -293,15 +293,6 @@ static u32 read_interrupts(struct xdma_dev *xdev)
 	return build_u32(hi, lo);
 }
 
-void enable_perf(struct xdma_engine *engine, bool enable)
-{
-	u32 w= enable? XDMA_PERF_AUTO | XDMA_PERF_RUN: XDMA_PERF_CLEAR;
-	write_register(w, &engine->regs->perf_ctrl,
-		       (unsigned long)(&engine->regs->perf_ctrl) -
-			       (unsigned long)(&engine->regs));
-	dbg_perf("XDMA_IOCTL_PERF_TEST %s\n", enable? "enabled": "disabled");
-}
-
 int get_perf_stats(struct xdma_engine *engine, struct xdma_performance_ioctl *__user user_perf_res)
 {
 	u32 hi;
@@ -1467,6 +1458,10 @@ static int engine_init_regs(struct xdma_engine *engine)
 			       (unsigned long)(&engine->regs));
 
 	engine->interrupt_enable_mask_value = interrupt_reg_value;
+	/*Permanently enable performance counters to enable accurate data count*/
+	write_register(XDMA_PERF_AUTO | XDMA_PERF_RUN, &(engine->regs->perf_ctrl),
+		       (unsigned long)(&engine->regs->perf_ctrl) -
+			       (unsigned long)(&engine->regs));
 	
 	engine_alignments(engine);
 	/* only enable credit mode for AXI-ST C2H */
@@ -1976,11 +1971,19 @@ static void xdma_launch_transfer(struct xdma_engine *engine)
 								
 }
 
-/*In case of timeout the function checks, if some progress has been made, that means descriptors were completed.
+static u64 get_data_count(struct xdma_engine *engine)
+{
+	
+	u32 hi = read_register(&(engine->regs->perf_dat_hi));
+	u32 lo = read_register(&(engine->regs->perf_dat_lo));
+	return build_u64(hi & ~XDMA_PERF_COUNT_OVERFLOW, lo);
+}
+
+/*In case of timeout the function checks, if some progress has been made.
 	If so wait longer for a timeout period to allow transfer to proceed*/
 static long xdma_wait_for_transfer(struct xdma_engine *engine)
 {
-	u32 last_completed_descriptors=0;
+	u64 last_data_count=0;
 	unsigned int timeout=(engine->dir==DMA_TO_DEVICE)? h2c_timeout_ms: c2h_timeout_ms;
 	unsigned long timeout_jiffies=(timeout==0)? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(timeout);
 #ifdef XDMA_POLL_MODE
@@ -1999,10 +2002,11 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 		/* return 0 to signify timeout*/
 		if (timeout>0  && time_after_eq(jiffies, jiffies_limit))
 		{
-			if(current_completed_descriptors > last_completed_descriptors)
+			u64 current_data_count=get_data_count(engine);
+			if(current_data_count > last_data_count)
 			{
 				jiffies_limit= jiffies + timeout_jiffies;//reset timer;
-				last_completed_descriptors=current_completed_descriptors;
+				last_data_count=current_data_count;
 				
 			}
 			else
@@ -2018,9 +2022,9 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	long rv;
 	while((rv=wait_for_completion_interruptible_timeout( &(engine->engine_compl), timeout_jiffies))==0)
 	{
-		u32 current_completed_descriptors=ioread32( &(engine->regs->completed_desc_count));
-		if(current_completed_descriptors > last_completed_descriptors)
-			last_completed_descriptors=current_completed_descriptors;
+		u64 current_data_count=get_data_count(engine);
+		if(current_data_count > last_data_count)
+			last_data_count=current_data_count;
 		else
 			break;
 	}
@@ -2032,21 +2036,6 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 	
 	return rv;
 #endif
-}
-
-static ssize_t calculate_completed_length(const struct xdma_engine *engine, u32 num_descriptors)
-{
-	ssize_t completed_length=0;
-	unsigned int block=0, desc=0;
-	for(; num_descriptors; ++block)
-  {
-    desc=0;
-		for(; (desc < engine->transfer.adj_desc_blocks[block].length) && num_descriptors; --num_descriptors, ++desc)		
-			completed_length += le32_to_cpu(engine->transfer.adj_desc_blocks[block].virtual_addr[desc].bytes);
-  }
-
-	return completed_length;
-
 }
 
 static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transfer_result)
@@ -2065,13 +2054,13 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 	else/* timeout or signal*/
 	{
 		
-		u32 completed_descriptors=ioread32( &(engine->regs->completed_desc_count));
+		u64 data_count=get_data_count(engine);
 		xdma_engine_stop(engine);
-		dbg_tfr("%u descriptors were completed on engine %s\n", completed_descriptors, engine->name);
+		dbg_tfr("data count is %llu on engine %s\n", data_count, engine->name);
 		if(transfer_result==0)
 		{
 			pr_warn("Transfer on engine %s has timed out.\n", engine->name);
-			if(completed_descriptors==0)
+			if(data_count==0)
 			{
 				transfer_result=-ETIMEDOUT;
 				goto exit;
@@ -2080,15 +2069,15 @@ static ssize_t xdma_finalise_transfer(struct xdma_engine *engine, ssize_t transf
 		else/*transfer result < 0: signal was recieved*/
 		{
 			pr_warn("Transfer on engine %s has been interrupted by a signal.\n", engine->name);
-			if(completed_descriptors==0)
+			if(data_count==0)
 			{
 				 transfer_result=-EINTR;
 				 goto exit;
 			}
 		}
 		
-		/*calculate and return total length of completed descriptors*/ 
-		transfer_result=calculate_completed_length(engine, completed_descriptors);
+		/*calculate total transfered data from data count*/ 
+		transfer_result=data_count * engine->xdev->datapath_width;
 	}
 	
 	exit:

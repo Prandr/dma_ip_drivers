@@ -76,6 +76,8 @@ you could do it yourself
 -  The latency of XDMA may vary due to the kernel API functions that may sleep 
 (for example memory allocation with kmalloc), therefore it is **not** RT capable. Consider
 to use bypass BAR for such application.
+- Timeouts can cause IO memory faults becuase, XDMA will try to complete current descriptor even when
+commanded to stop the transfer. They must be avoided and treated as an error.
 ### Changes in behaviour over mainline driver
 - The driver strictly enforces appropriate access for XDMA devices. In particular:
     1. H2C XDMA devices can be opened only for writing (with `O_WRONLY`) 
@@ -88,13 +90,9 @@ to use bypass BAR for such application.
 MM XDMA device.
 - The driver strives to conform to standard behavior of write and read operations, which 
 states that in case operation times out or gets interrupted by a signal, it should return 
-the amount of read or written bytes, unless no data could be processed. Therefore, it
-returns the number of bytes of the completed descriptors. The actual transmitted data is 
-likely larger than that, but unfortunately, there is no way for driver to find out exact
-amount of transmitted data, therefore the data in the last incomplete descriptor is as good
-as lost, unless you have means to differentiate between good and nonsense values.
-- In case of timeout, driver checks first, if some progress has been made in terms of 
-descriptors and if so it waits a further period, to give a transfer chance to complete.
+the amount of read or written bytes, unless no data could be processed.
+- In case of timeout, driver checks first, if some progress has been made 
+and if so it waits a further timeout period, to give a transfer chance to complete.
 - Default timeout is reduced to 5 ms.
 
 ### Where can programming guides and examples be found?
