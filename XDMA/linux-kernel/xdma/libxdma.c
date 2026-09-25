@@ -1993,7 +1993,7 @@ static long xdma_wait_for_transfer(struct xdma_engine *engine)
 				
 		}
 	/*catch signals*/
-	} while(!signal_pending(current) && !dma_device_test_offline(engine->xdev);
+	} while(!signal_pending(current) && !xdma_device_test_offline(engine->xdev));
 	/*like wait for completion*/
 	return -ERESTARTSYS;
 	
