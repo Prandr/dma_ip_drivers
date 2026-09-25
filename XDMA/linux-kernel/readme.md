@@ -21,11 +21,8 @@ latency as far as possible. It aspires to implement Figures 5-7 from PG195 in
 most efficient manner. Among the improvements:
 - Length of the adjacent descriptor blocks gets adapted to the Maximum Request Read
 Size (MRRS) as PG195 (p. 24) commands.
-- The max number of usable descriptors is adapted to FIFO size (whose capacity depends on
-configuration of the XDMA per p. 26 in PG195). The driver makes flexible use of them, 
-by allocating to transfers on "first come, first served" basis. Thus, if there no other 
-transfers running in parallel, the whole capacity is available for a transfer.
-If an IOMMU is avilable, the driver can support huge multi-GB transfers. You may, however,
+- The driver can support huge multi-GB transfer, that are in theory limited only by the
+available coherent memory for descriptors. You may, however, in addition
 need to raise the memlock resource limit for pinnable memory to your maximum transfer size.
 - The memory for engines is allocated dynamically, which saves a little bit of 
 kernel memory.

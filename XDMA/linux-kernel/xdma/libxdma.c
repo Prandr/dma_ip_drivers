@@ -1656,20 +1656,6 @@ static int xdma_validate_transfer(const struct xdma_engine *engine)
 		
 	return rv;	
 }
-/*atomically subtract unless the result would become negative
-Modelled after the atomic_dec_unless_positive function*/
-static bool atomic_sub_unless_negative(atomic_t *v, int u)
-{
-	int c=atomic_read_acquire(v);
-	
-	do
-	{
-		if(unlikely(u > c))
-			return false;
-	}while(!atomic_try_cmpxchg(v, &c, c-u));
-	
-	return true;
-}
 
 static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 {
@@ -1713,7 +1699,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 						GFP_KERNEL|__GFP_RETRY_MAYFAIL, &desc_dma_addr);
 		if(unlikely(transfer->adj_desc_blocks[transfer->num_adj_blocks].virtual_addr==NULL))
 		{
-			dbg_sg("Failed to allocate memory from descriptor pool on engine %s\n", engine->name);		
+			pr_err("Failed to allocate coherent memory for descriptors on engine %s\n", engine->name);		
 			return -ENOMEM;
 		}
 		transfer->adj_desc_blocks[transfer->num_adj_blocks].dma_addr=desc_dma_addr;
@@ -1827,14 +1813,7 @@ static int xdma_sgtable_to_descriptors(struct xdma_engine *engine)
 	}
 	
 	/*set control flags on the very last descriptor*/
-		current_desc->control|=cpu_to_le32(control_flags);
-		/*Transfer doesn't fit into remaining space of descriptor FIFO */
-		if ( unlikely(!atomic_sub_unless_negative( &(engine->xdev->desc_fifo_capacity), transfer->total_descriptors)))
-		{
-			pr_err("Transfer requires %u descriptors that do not fit into descriptor FIFO.", transfer->total_descriptors);
-			return -EFBIG;
-		}
-		transfer->cleanup_flags|=XFER_FLAG_DESC_FIFO_RESERVED;
+	current_desc->control|=cpu_to_le32(control_flags);
 	return 0;
 }
 
@@ -2090,10 +2069,7 @@ static void xdma_cleanup_transfer(struct xdma_engine *engine, bool transfer_ok)
 {
 	struct xdma_transfer *transfer=&(engine->transfer);
 	dbg_tfr("Cleanup flags: %x\n", transfer->cleanup_flags);
-	
-	if(transfer->cleanup_flags & XFER_FLAG_DESC_FIFO_RESERVED)
-		atomic_add_return_release(transfer->total_descriptors, &(engine->xdev->desc_fifo_capacity));
-	
+		
 	if(transfer->cleanup_flags & XFER_FLAG_DESC_DMA_ALLOC)
 	{
 		unsigned int i=0;
@@ -2553,9 +2529,8 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev, int *user_max,
 
 	set_max_read_request_size(xdev);
 	set_datapath_width(xdev);
-	atomic_set(&(xdev->desc_fifo_capacity), (int) (xdev->datapath_width*XDMA_DESC_FIFO_DEPTH/sizeof(struct xdma_desc)));
-	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte. up to %i descriptors are avilable to the DMA engines\n", 
-		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width, atomic_read( &(xdev->desc_fifo_capacity)));
+	dbg_init("XDMA MRRS is %u byte, datapath width is %u bit/%u byte.\n", 
+		xdev->max_read_request_size, xdev->datapath_width*8, xdev->datapath_width);
 	rv = probe_engines(xdev);
 	if (unlikely(rv))
 		goto err_probe_engines;
